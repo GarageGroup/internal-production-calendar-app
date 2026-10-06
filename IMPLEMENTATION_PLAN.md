@@ -66,13 +66,15 @@
 
 ## Этап 4. Получение дня
 
-- [ ] `Handler/ProductionCalendarDayGetHandler.cs` и `Handler/Handler.Handle.cs`.
-- [ ] Dependency extension с generic supplier constraint по примеру `CurrentExchangeRateGetHandlerDependency`.
-- [ ] Pipeline: validation → StorageGetIn → storage supplier → GetOut и маппинг FailureCode.
-- [ ] IsWorkingDay вычисляется только по DayType; Country/Date/Comment входят в ответ.
-- [ ] Проверка обработки четырёх DayType, нормализации страны, NotFound/Invalid/Unknown и отмены.
+- [x] `Handler/ProductionCalendarDayGetHandler.cs` и `Handler/Handler.Handle.cs`.
+- [x] Dependency extension с generic supplier constraint по примеру `CurrentExchangeRateGetHandlerDependency`.
+- [x] Pipeline: validation → StorageGetIn → storage supplier → GetOut и маппинг FailureCode.
+- [x] IsWorkingDay вычисляется только по DayType; Country/Date/Comment входят в ответ.
+- [x] Проверка обработки четырёх DayType, нормализации страны, NotFound/Invalid/Unknown и отмены.
 
 Готовность: единственный вызов storage на точную дату, включая выходной; нет fallback на предыдущий день или вычисления дня без записи.
+
+Проверка инкремента 4 (2026-10-07): restore --disable-parallel и Release build успешны, 0 ошибок/предупреждений. Проверены ветки и маппинг по коду; runtime-вызовы и HTTP пока не выполнялись, тесты не писались. Инкремент ожидает ревью без коммита; инкремент 3 одобрен и закоммичен: da90587.
 
 ## Этап 5. Инициализация года
 

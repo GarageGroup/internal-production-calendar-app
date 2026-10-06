@@ -109,3 +109,13 @@ SetDayAsync: AsyncPipeline → валидация страны/enum → entity �
 Проверено: Release build и просмотр формирования запросов/маппинга. Тесты не создавались. Реальные GET/PUT в Azure не выполнялись; ручные проверки запланированы после хоста и настройки среды. Таблицу создаёт инфраструктура, Api не создаёт таблицы.
 
 По замечанию ревью от 2026-10-07 entity объявляется через var внутри try; проверки и маппинг находятся там же. Catch JsonException сохраняет обработку ошибок десериализации, отдельная проверка entity is null сохраняет обработку JSON null. Предварительное nullable-объявление убрано.
+
+## Handler получения дня — инкремент 4
+
+ProductionCalendarDayGetHandler — internal sealed partial class с зависимостью от узкого IProductionCalendarDayStorageGetSupplier. Основной класс, Handler.Handle.cs и публичный ProductionCalendarDayGetHandlerDependency размещены по структуре CurrentExchangeRate.Get образца. Dependency.Map с generic supplier constraint создаёт handler; аргументы dependency и фабрики проверяются ThrowIfNull.
+
+HandleAsync использует AsyncPipeline: BuildStorageGetIn (нормализация Country через OrEmpty/Trim/ToUpperInvariant и проверка двух ASCII-букв) → ForwardValue(storageApi.GetDayAsync, маппинг FailureCode) → MapSuccess(GetOut). Для OrEmpty добавлен прямой PrimeFuncPack.Primitives.Strings 3.0.0. Невалидная страна возвращает Invalid до вызова supplier; дата передаётся без изменения. Для валидного входа существует ровно один вызов чтения, без fallback или поиска предыдущего дня.
+
+GetOut сохраняет Country, Date, DayType и nullable Comment из StorageGetOut. IsWorkingDay не задаётся отдельно: вычисляемое свойство контракта вызывает общий DayTypeExtensions, WorkingDay/ShortenedDay дают true, Weekend/Holiday — false. StorageFailureCode.Invalid/NotFound явно маппятся в соответствующие endpoint codes; остальные — Unknown, диагностический Failure сохраняется через MapFailureCode.
+
+Токен передаётся AsyncPipeline и storage supplier; явных проверок отмены или catch нет. Проверены сборка и структура веток по коду, runtime-вызовы и HTTP-ответы пока не проверены: composition root и функции реализуются на этапе 6. Тесты не создаются.

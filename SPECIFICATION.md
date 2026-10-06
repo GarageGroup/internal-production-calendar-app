@@ -57,6 +57,8 @@ Entity использует строковое свойство `DayType`; ма�
 
 Storage API реализован на этапе 3: GET/PUT по entity URL с PartitionKey/RowKey, явная проверка ключей и Date ответа, строковый DayType. Входной nullable Comment на записи преобразуется OrEmpty и всегда передаётся строкой. Имя таблицы фиксировано ProductionCalendar; настройки содержат ServiceUri и TableName, неправильная конфигурация отклоняется при создании Api. Реальные вызовы Azure пока не проверены.
 
+Handler получения реализован на этапе 4: Country нормализуется и валидируется до вызова Storage, Date передаётся без изменения, выполняется одно чтение. GetOut содержит Country/Date/DayType/Comment и вычисляемое IsWorkingDay по общей таблице правил. Ошибки Storage переводятся в endpoint Invalid/NotFound/Unknown без fallback даты. HTTP endpoint пока не реализован.
+
 ## Инициализация
 
 Вход прикладного метода — полная типизированная модель: Country, Year и required FlatArray<ProductionCalendarDayOverride> Days. Каждый override содержит required DateOnly Date, required DayType Type и nullable string Comment. Отдельного поля Json нет. Будущий HTTP-адаптер читает country/year/days из единого JSON-тела и маппит его в эту модель.

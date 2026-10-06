@@ -20,6 +20,7 @@
   <ItemGroup>
     <PackageReference Include="EarlyFuncPack.Core.AsyncPipeline" Version="0.3.0" />
     <PackageReference Include="PrimeFuncPack.Dependency.Core" Version="2.2.0" />
+    <PackageReference Include="PrimeFuncPack.Primitives.Strings" Version="3.0.0" />
   </ItemGroup>
 
 </Project>

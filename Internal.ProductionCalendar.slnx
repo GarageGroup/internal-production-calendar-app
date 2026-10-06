@@ -1,0 +1,23 @@
+<Solution>
+  <Folder Name="/service/" />
+  <Folder Name="/service/ProductionCalendar/">
+    <Project Path="src/service/ProductionCalendar/Contract/Contract.csproj" />
+    <Project Path="src/service/ProductionCalendar/Api/Api.csproj" />
+  </Folder>
+  <Folder Name="/service/Storage/">
+    <Project Path="src/service/Storage/Contract/Contract.csproj" />
+    <Project Path="src/service/Storage/Api/Api.csproj" />
+  </Folder>
+  <Folder Name="/endpoint/" />
+  <Folder Name="/endpoint/ProductionCalendarDay.Get/">
+    <Project Path="src/endpoint/ProductionCalendarDay.Get/Contract/Contract.csproj" />
+    <Project Path="src/endpoint/ProductionCalendarDay.Get/Handler/Handler.csproj" />
+  </Folder>
+  <Folder Name="/endpoint/ProductionCalendar.Initialize/">
+    <Project Path="src/endpoint/ProductionCalendar.Initialize/Contract/Contract.csproj" />
+    <Project Path="src/endpoint/ProductionCalendar.Initialize/Handler/Handler.csproj" />
+  </Folder>
+  <Folder Name="/app/">
+    <Project Path="src/app/AzureFunc/AzureFunc.csproj" />
+  </Folder>
+</Solution>

@@ -24,6 +24,7 @@
 - Использовать .NET 10, отключённые implicit usings, nullable, warnings as errors, `IsPackable=false`, `InvariantGlobalization=false`. Не вводить `Directory.Build.props` и центральное управление пакетами: в образце настройки находятся в каждом `.csproj`.
 - Общий file-scoped namespace: `GarageGroup.Internal.ProductionCalendar`. `AssemblyName` содержит слой и операцию.
 - Явные `using`, отступ четыре пробела, фигурные скобки на отдельной строке. Повторять расположение переносов expression-bodied методов и цепочек из образца.
+- Для десериализации объявлять локальную модель через var внутри try и обрабатывать её в этой же области видимости; не объявлять nullable-переменную заранее только ради использования после try. Catch перехватывает соответствующее исключение, а null-результат проверяется явно.
 - Публичные контракты и DTO размещать в `Contract`; DTO обычно `sealed record class` с `required`/`init`. Реализации — `internal sealed partial class`.
 - Обязательные строковые/ссылочные свойства объявлять `required`; необязательные — nullable без инициализатора `= string.Empty;`. Когда реализации нужна непустая по null строка, использовать `.OrEmpty()` в месте преобразования. Comment необязателен: `string?`.
 - Никогда не использовать null-forgiving оператор `!` для подавления nullable-проверок. Обрабатывать null явно, проверками или нормализацией.

@@ -49,17 +49,20 @@
 
 ## Этап 3. Azure Table Storage API
 
-- [ ] `Option/StorageOption.cs`: ServiceUri и TableName `ProductionCalendar`.
-- [ ] `Internal.Table/ProductionCalendarDayTableEntity.cs`: string PartitionKey, RowKey, Date, DayType, Comment; явные JSON имена, соответствующие Storage.
-- [ ] `StorageApi/StorageApi.cs`: константы REST, headers, форматирование ключей и URL, общие проверки.
-- [ ] `Api.Day.Get.cs`: AsyncPipeline → validation/point URL → IHttpApi.SendAsync → entity decode/validation → business output.
-- [ ] `Api.Day.Set.cs`: AsyncPipeline → validation/entity mapping → PUT insert-or-replace → Unit; тело содержит все бизнес-поля, включая пустой Comment.
-- [ ] `StorageApiDependency.cs`: `Dependency<IHttpApi, StorageOption>.Fold<IStorageApi>` с проверками фабрики, как в образце.
-- [ ] Передавать CancellationToken, маппить 404 чтения в NotFound; сбои/повреждённые данные в Unknown.
-- [ ] Проверить фактическую семантику Table REST insert-or-replace, headers и кодов ответа по официальной документации при реализации.
-- [ ] Проверка кода формирования запросов и ошибок без написания тестов: ровно point lookup; правильные ключи, строки enum/date и полный PUT; очистка комментария; неверный вход до HTTP; 404; malformed entity; отмена.
+- [x] `Option/StorageOption.cs`: ServiceUri и TableName `ProductionCalendar`.
+- [x] `Internal.Table/ProductionCalendarDayTableEntity.cs`: string PartitionKey, RowKey, Date, DayType, Comment; явные JSON имена, соответствующие Storage.
+- [x] `StorageApi/StorageApi.cs`: константы REST, headers, форматирование ключей и URL, общие проверки.
+- [x] `Api.Day.Get.cs`: AsyncPipeline → validation/point URL → IHttpApi.SendAsync → entity decode/validation → business output.
+- [x] Замечание ревью 2026-10-07: entity объявляется через var внутри try; проверки и маппинг в том же блоке, catch JsonException и проверка null сохранены.
+- [x] `Api.Day.Set.cs`: AsyncPipeline → validation/entity mapping → PUT insert-or-replace → Unit; тело содержит все бизнес-поля, включая пустой Comment.
+- [x] `StorageApiDependency.cs`: `Dependency<IHttpApi, StorageOption>.Fold<IStorageApi>` с проверками фабрики, как в образце.
+- [x] Передавать CancellationToken, маппить 404 чтения в NotFound; сбои/повреждённые данные в Unknown.
+- [x] Проверить фактическую семантику Table REST insert-or-replace, headers и кодов ответа по официальной документации при реализации.
+- [x] Проверка кода формирования запросов и ошибок без написания тестов: ровно point lookup; правильные ключи, строки enum/date и полный PUT; очистка комментария; неверный вход до HTTP; 404; malformed entity; отмена.
 
 Готовность: Storage не сканируется; данные в JSON видны как строковые даты и типы; replace-upsert поддерживает повторные записи. Проверены структура запросов и маппинг; ручные вызовы выполнить при доступности среды.
+
+Проверка инкремента 3 (2026-10-07): Release build девяти проектов успешен, 0 ошибок/предупреждений; выполнена проверка формирования HTTP-запросов и маппинга по исходникам и документации Azure. Тесты не писались. Реальные GET/PUT Azure пока не выполнялись, ручная интеграционная проверка остаётся на этапе 7. Инкремент 3 ожидает ревью без коммита; инкремент 2 одобрен и закоммичен: c206593.
 
 ## Этап 4. Получение дня
 

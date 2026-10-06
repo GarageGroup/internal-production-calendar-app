@@ -20,6 +20,7 @@
 ## Отличия от образца
 
 - Namespace settings: `ProductionCalendar:Storage:ServiceUri` и `ProductionCalendar:Storage:TableName`. Azure environment variables используют двойное подчёркивание.
+- Storage API проверяет TableName=ProductionCalendar при создании; имя таблицы в Bicep и app settings должно точно совпадать. ServiceUri для Azure — абсолютный HTTPS endpoint без query/fragment.
 - Нет CurrencyPairs, CurrentRates/DailyRates, schedule обновления курсов и бизнес-таймеров.
 - В требованиях календаря нет Dataverse. Не копировать dataverseServiceUrl, Application User и grant-dataverse script/jobs. Если интеграция потребуется отдельно, добавить её отдельным согласованным этапом.
 - Не наследовать конкретные имена ресурсов, subscription IDs, секреты и values из образца. Имя приложения по умолчанию в примерах: `internal-production-calendar`.

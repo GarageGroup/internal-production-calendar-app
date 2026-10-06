@@ -93,3 +93,19 @@ BuildAsync использует AsyncPipeline: ValidateInput → ValidateOverrid
 ### Проверка проекта
 
 По решению пользователя от 2026-10-07 тесты в проекте не пишутся. Тестовый проект, его исходники и ссылка из solution удалены; xUnit/VSTest больше не являются частью проекта. Проверки — restore/build, необходимый publish и ручная проверка поведения без написания тестового кода. История ранее выполненных тестов сохранена только в DEVELOPMENT_LOG.md и датированной записи плана.
+
+## Storage API — инкремент 3
+
+Добавлены StorageApi (основной partial-класс и Api.Day.Get.cs/Api.Day.Set.cs), StorageApiDependency, StorageOption и отдельная ProductionCalendarDayTableEntity в Internal.Table. Новые пакеты не требуются: IHttpApi, AsyncPipeline и Dependency используют зависимости каркаса.
+
+StorageOption содержит required ServiceUri и TableName; фабрика Dependency<IHttpApi, StorageOption>.Fold проверяет аргументы. При создании Api проверяются абсолютный HTTP/HTTPS URI без query/fragment и фиксированное имя ProductionCalendar. Ошибки конфигурации — ArgumentException при композиции; ошибки бизнес-входа — StorageFailureCode.Invalid до HTTP. HTTP разрешён для будущего локального emulator, production-настройки используют HTTPS.
+
+GetDayAsync: AsyncPipeline → валидация страны/point URL → IHttpApi.SendAsync → проверка entity. PartitionKey — нормализованная страна и четырёхзначный год, RowKey — yyyyMMdd. Чтение выполняется через [адрес одной entity по обоим ключам](https://learn.microsoft.com/en-us/rest/api/storageservices/query-entities), без filter или сканирования. Код 404 маппится в NotFound, остальные HTTP failures — Unknown. Проверяются ожидаемые ключи, Date в формате yyyy-MM-dd и равенство запрошенной дате; DayType маппится switch только по четырём точным именам. JsonException и повреждённые значения возвращают Unknown; общий catch и ручные проверки отмены не применяются.
+
+SetDayAsync: AsyncPipeline → валидация страны/enum → entity → [PUT Insert Or Replace](https://learn.microsoft.com/en-us/rest/api/storageservices/insert-or-replace-entity) → Unit. If-Match не отправляется. Имена PartitionKey, RowKey, Date, DayType и Comment закреплены через JsonPropertyName; Date и DayType — string. Nullable Comment преобразуется OrEmpty, поэтому отсутствие нового комментария очищает прежнее значение полной заменой. Ответ записи обрабатывается как OnlyStatusCode, штатный ответ Azure — 204.
+
+Оба запроса используют FlatArray headers: x-ms-version 2019-02-02 по образцу, свежий x-ms-date в RFC1123, Accept application/json;odata=nometadata и [OData version headers 3.0](https://learn.microsoft.com/en-us/rest/api/storageservices/setting-the-odata-data-service-version-headers). Content-Type тела задаётся HttpBody.SerializeAsJson. Credential middleware подключается на этапе composition root; Bearer и выбранная версия сверены с [документацией авторизации](https://learn.microsoft.com/en-us/rest/api/storageservices/authorize-with-azure-active-directory).
+
+Проверено: Release build и просмотр формирования запросов/маппинга. Тесты не создавались. Реальные GET/PUT в Azure не выполнялись; ручные проверки запланированы после хоста и настройки среды. Таблицу создаёт инфраструктура, Api не создаёт таблицы.
+
+По замечанию ревью от 2026-10-07 entity объявляется через var внутри try; проверки и маппинг находятся там же. Catch JsonException сохраняет обработку ошибок десериализации, отдельная проверка entity is null сохраняет обработку JSON null. Предварительное nullable-объявление убрано.

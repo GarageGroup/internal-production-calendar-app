@@ -11,6 +11,4 @@ public sealed record class ProductionCalendarDay
     public DayType DayType { get; init; }
 
     public string? Comment { get; init; }
-
-    public bool IsWorkingDay => DayType.IsWorkingDay();
 }

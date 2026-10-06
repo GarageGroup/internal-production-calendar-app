@@ -20,7 +20,7 @@
 
 ## Структура и стиль
 
-- Сохранять `src/app/AzureFunc`, `src/endpoint/<Operation>/Contract|Handler`, `src/service/<Service>/Contract|Api` и `.infra`, `.github/workflows`.
+- Сохранять `src/app/AzureFunc`, `src/endpoint/<Operation>/Contract|Handler`, `src/service/<Service>/Contract|Api`, `src/shared/DayType` и `.infra`, `.github/workflows`.
 - Использовать .NET 10, отключённые implicit usings, nullable, warnings as errors, `IsPackable=false`, `InvariantGlobalization=false`. Не вводить `Directory.Build.props` и центральное управление пакетами: в образце настройки находятся в каждом `.csproj`.
 - Общий file-scoped namespace: `GarageGroup.Internal.ProductionCalendar`. `AssemblyName` содержит слой и операцию.
 - Явные `using`, отступ четыре пробела, фигурные скобки на отдельной строке. Повторять расположение переносов expression-bodied методов и цепочек из образца.
@@ -32,7 +32,7 @@
 - Для последовательностей по умолчанию использовать `FlatArray<T>`, а не обычные массивы `T[]`, в контрактах, реализации и JSON DTO. Для заполнения известного количества элементов — `FlatArray<T>.Builder.OfLength(...)` и `MoveToFlatArray()`. Для LINQ/внешних API IEnumerable использовать `AsEnumerable()`, без лишнего ToArray. Обычные массивы допустимы только при конкретной необходимости внешнего API; основание исключения записывать в журнале.
 - Учитывать поведение JSON-конвертера FlatArray: null может превращаться в пустую коллекцию. Если вход запрещает null и разрешает пустой массив, сохранять различие nullable-обёрткой в транспортном DTO и явной валидацией; не ослаблять требования ради смены коллекции.
 - Основной класс и операции разделять: `StorageApi.cs` + `Api.Day.Get.cs`/`Api.Day.Set.cs`, `ProductionCalendarApi.cs` + `Api.Build.cs`, `<Operation>Handler.cs` + `Handler.Handle.cs`.
-- Enum `DayType` живёт в `service/ProductionCalendar/Contract`. Azure Table entity живёт только в `Storage/Api/Internal.Table`; не отдавать её наружу.
+- Enum `DayType` и `DayTypeExtensions` живут в отдельном проекте `src/shared/DayType/DayType.csproj`. Контракты каждого слоя независимы: не ссылаться из Contract на Contract другого сервиса или endpoint. Каждому слою — собственные DTO, даже при одинаковых полях; между DTO маппить в реализации handler/API. Общие согласованные типы подключать из shared. Реализации handlers могут зависеть от supplier-контрактов сервисов. Azure Table entity живёт только в `Storage/Api/Internal.Table`; не отдавать её наружу.
 - Построение и инициализация принимают типизированные Country/Year/Days, без строкового поля Json. Date — DateOnly, Type — DayType, Comment — nullable. JSON читает HTTP-адаптер; сервис не десериализует JSON. При необходимости транспортных JSON DTO размещать каждую модель в отдельном файле папки Inernal.Json соответствующего проекта (имя папки задано пользователем), не вкладывать модели в Api/Function. Ненужные JSON DTO сервиса календаря удалены.
 
 ## AsyncPipeline и ошибки

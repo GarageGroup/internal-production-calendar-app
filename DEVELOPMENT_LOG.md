@@ -247,3 +247,40 @@
 ## 2026-10-07 — одобрение инкремента 4
 
 Пользователь сообщил «Продолжай»: handler получения дня принят. Изменения инкремента 4 коммитятся перед началом инкремента 5.
+## 2026-10-07 — коммит инкремента 4 и инкремент 5
+
+**Одобрение:** пользователь сообщил «Продолжай». Создан коммит `277057c` — Implement production calendar day get handler. После него начат этап 5.
+
+**Выполнено:** добавлены ProductionCalendarInitializeHandler.cs, Handler.Handle.cs и ProductionCalendarInitializeHandlerDependency.cs, удалён .gitkeep заполненной папки. Реализована цепочка InitializeIn → BuildAsync → запись полного года → InitializeOut. Обновлены план, архитектура, спецификация и обзор проекта.
+
+**Применены требования пользователя:** AsyncPipeline, узкие supplier-интерфейсы и Dependency.Fold по образцу; FlatArray; nullable Comment без инициализатора и null-forgiving; токен передаётся зависимостям без ThrowIfCancellationRequested; тесты не создаются; новый инкремент оставлен без коммита.
+
+**Самостоятельно принятые решения:**
+
+- Полная валидация и построение выполняются существующим build supplier до первого вызова Storage. Handler не дублирует бизнес-валидацию успешного BuildOut.
+- Для последовательной записи применяется PipeParallelValue из установленного AsyncPipeline.Extensions 0.4.1 с DegreeOfParallelism=1 и FailureAction=Stop. За основу взяты DailyExchangeRate.Update/Handler/Handler.Handle.cs и DailyExchangeRateUpdateHandlerDependency.cs проекта-образца; новый ручной async-цикл не требуется.
+- Записываются все дни с полными полями, включая nullable Comment, который Storage нормализует через OrEmpty. Удалённые overrides заменяются базовыми днями посредством replace-upsert.
+- Build Invalid маппится в Initialize Invalid с сохранением диагностики. Любой Storage failure маппится в Unknown, так как вход уже проверен; сохраняются исходные FailureMessage/SourceException и добавляется контекст страны, года, даты.
+- Country/Year/DaysCount возвращаются из BuildOut только после успешного завершения всей записи. Год не является атомарной транзакцией; частичный результат при сбое исправляется повторной полной инициализацией. Конкурирующие вызовы одной partition не сериализованы.
+
+**Проверки:** dotnet build Internal.ProductionCalendar.slnx --no-restore -c Release — успешно для девяти проектов, 0 ошибок и предупреждений. Новые пакеты не добавлялись. Просмотрены цепочка до первой записи, обработка failures, полный проход коллекции, перенос Comment и токена. Runtime/Azure проверка не проводилась: HTTP-хост и среда ещё не готовы. Сборка не доказывает поведение записи; ручная проверка остаётся на этапе 7. Тесты не создавались и не запускались.
+
+**Статус:** инкремент 5 готов к ревью без коммита. После одобрения — коммит и этап 6, HTTP-функции и composition root.
+
+## 2026-10-07 — ревью инкремента 5: независимость контрактов и Shared.DayType
+
+**Требование пользователя:** контракт handler не должен использовать ProductionCalendarDayOverride из сервиса; у каждого слоя собственные независимые контракты. DayType.cs и DayTypeExtensions.cs перенести в отдельный проект DayType в src/shared рядом с service/endpoint/app. Замечание не является одобрением инкремента.
+
+**Выполнено:** создан src/shared/DayType/DayType.csproj, файлы enum/extension перенесены без изменения поведения, solution содержит десять проектов. В Initialize.Contract добавлена ProductionCalendarInitializeDay, InitializeIn.Days теперь FlatArray этой endpoint-модели. Handler создаёт отдельные сервисные overrides перед BuildAsync. Устранены найденные дополнительные зависимости Storage.Contract и Get.Contract от ProductionCalendar.Contract; все четыре Contract теперь ссылаются только на общий Shared и библиотечные пакеты. Удалена лишняя прямая ссылка Get.Handler на ProductionCalendar.Contract. Обновлены AGENTS, план, архитектура, спецификация и обзор.
+
+**Самостоятельные решения:** сохранён общий namespace, сборка названа GarageGroup.Internal.ProductionCalendar.Shared.DayType; Shared не имеет ProjectReference или PackageReference. FlatArray 1.5.1 подключён напрямую в Initialize.Contract вместо получения через сервис. Маппинг использует Builder.OfLength/MoveToFlatArray, сохраняет Date/Type/Comment и явно отклоняет null-элемент как Invalid до вызова build supplier. Остальная бизнес-валидация остаётся в сервисе. Реализации handlers продолжают зависеть от узких supplier-контрактов, чтобы вызывать сервисы, но не экспортируют их DTO через свои контракты.
+
+**Проверки:** dotnet restore Internal.ProductionCalendar.slnx --disable-parallel — успешно; dotnet build Internal.ProductionCalendar.slnx --no-restore -c Release — успешно, 0 ошибок/предупреждений для десяти production-проектов. Проверены ProjectReference и типы всех контрактов: других межслойных DTO-зависимостей не обнаружено. Тесты не добавлялись. Azure/runtime не проверялись.
+
+**Статус:** исправления входят в текущий инкремент 5; без коммита, ожидают проверки пользователя. После одобрения — коммит и этап 6.
+## 2026-10-07 — ревью инкремента 5: лишний IsWorkingDay в сервисной модели
+
+Пользователь указал на отсутствие потребителей ProductionCalendarDay.IsWorkingDay. Проверка ссылок подтвердила: свойство сервисной модели не используется. Удалено; IsWorkingDay остаётся в ProductionCalendarDayGetOut, где требуется контрактом ответа и вычисляется через Shared.DayTypeExtensions. Уточнены архитектура и план, включая принадлежность ProductionCalendarDay сервисному контракту. Release build десяти проектов успешен, 0 ошибок/предупреждений. Тесты не добавлялись. Исправление входит в текущий инкремент 5, без коммита до одобрения.
+## 2026-10-07 — одобрение инкремента 5
+
+Пользователь сообщил «продолжай»: handler инициализации и исправления ревью приняты. Выполняется коммит перед этапом 6.

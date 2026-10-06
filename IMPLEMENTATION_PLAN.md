@@ -15,8 +15,8 @@
 
 ## Этап 1. Контракты и бизнес-модель
 
-- [x] `service/ProductionCalendar/Contract/DayType.cs`: четыре значения enum из спецификации.
-- [x] Модель `ProductionCalendarDay`: Country, DateOnly Date, DayType, Comment; единое чистое правило IsWorkingDay.
+- [x] `shared/DayType/DayType.cs` и `DayTypeExtensions.cs`: общий независимый проект для enum и правила IsWorkingDay (перенос по ревью 2026-10-07).
+- [x] Модель `ProductionCalendarDay`: Country, DateOnly Date, DayType, Comment. Правило IsWorkingDay находится в Shared и используется GetOut; неиспользуемое свойство сервисной модели удалено по ревью 2026-10-07.
 - [x] Замечание ревью 2026-10-06: Comment объявлен nullable без инициализатора во всех четырёх моделях; правила required/nullable, OrEmpty, запрета null-forgiving и предпочтения is/is not закреплены в AGENTS.md.
 - [x] `ProductionCalendar.Build/`: input построения Country/Year/Days, output полного календаря, typed failure codes, supplier `IProductionCalendarBuildSupplier`.
 - [x] `IProductionCalendarApi` объединяет supplier построения.
@@ -78,15 +78,25 @@
 
 ## Этап 5. Инициализация года
 
-- [ ] `Handler/ProductionCalendarInitializeHandler.cs`, `Handler.Handle.cs` и `ProductionCalendarInitializeHandlerDependency.cs`.
-- [ ] Handler принимает build supplier и storage set supplier; композиция через `Dependency<...,...>.Fold`.
-- [ ] AsyncPipeline: вход → построение/полная валидация → сохранение всех дней → итоговый ответ.
-- [ ] Применить Extensions для последовательности записей, если сигнатуры пакета позволяют; иначе изолировать последовательный async-цикл в одной стадии с передачей токена.
-- [ ] При первом сбое записи вернуть Failure с контекстом страны/года/даты, без ложного успеха.
-- [ ] Сохранять весь год при каждом вызове, включая обычные дни, пустые комментарии и удалённые overrides.
-- [ ] Ручная проверка при доступности среды: число записей 365/366, все ключи уникальны, новый JSON заменяет прошлые значения, повтор идентичного входа не создаёт новых ключей, другой год/страна не затронуты, invalid JSON даёт ноль записей, сбой/отмена прекращает обработку.
+- [x] `Handler/ProductionCalendarInitializeHandler.cs`, `Handler.Handle.cs` и `ProductionCalendarInitializeHandlerDependency.cs`.
+- [x] Handler принимает build supplier и storage set supplier; композиция через `Dependency<...,...>.Fold`.
+- [x] AsyncPipeline: вход → построение/полная валидация → сохранение всех дней → итоговый ответ.
+- [x] Применить Extensions для последовательности записей, если сигнатуры пакета позволяют; иначе изолировать последовательный async-цикл в одной стадии с передачей токена.
+- [x] При первом сбое записи вернуть Failure с контекстом страны/года/даты, без ложного успеха.
+- [x] Сохранять весь год при каждом вызове, включая обычные дни, пустые комментарии и удалённые overrides.
+- [ ] Ручная проверка при доступности среды (перенесена на этап 7): число записей 365/366, все ключи уникальны, новый JSON заменяет прошлые значения, повтор идентичного входа не создаёт новых ключей, другой год/страна не затронуты, invalid JSON даёт ноль записей, сбой/отмена прекращает обработку.
 
 Готовность: повторная инициализация удовлетворяет полной replace-семантике; модель частичных сбоев явно документирована.
+
+Проверка инкремента 5 (2026-10-07): Release build девяти проектов — 0 ошибок/предупреждений; просмотрены цепочка до первой записи, маппинг ошибок и полная запись года. PipeParallelValue использует DegreeOfParallelism=1 и FailureAction=Stop. Runtime/Azure проверка не выполнялась: HTTP-хост и среда пока отсутствуют. Тесты не добавлялись. Инкремент 4 принят и закоммичен: 277057c. Инкремент 5 готов к ревью без коммита.
+
+### Исправления ревью инкремента 5 — 2026-10-07
+
+- [x] Создать src/shared/DayType/DayType.csproj и перенести DayType/DayTypeExtensions; включить проект в solution.
+- [x] Убрать зависимости между Contract-проектами, подключить общий Shared в четырёх контрактах.
+- [x] Добавить ProductionCalendarInitializeDay в endpoint Contract и маппинг в ProductionCalendarDayOverride внутри handler с проверкой null-элементов.
+- [x] Удалить лишнюю ссылку Get handler на ProductionCalendar.Contract и закрепить независимость DTO в AGENTS.md.
+- [x] Restore --disable-parallel и Release build десяти проектов: 0 ошибок/предупреждений. Проверены ссылки всех Contract-проектов; только Shared, сторонние библиотеки и собственные DTO. Тесты не создавались. Изменения остаются частью инкремента 5 без коммита до ревью.
 
 ## Этап 6. Azure Functions и composition root
 

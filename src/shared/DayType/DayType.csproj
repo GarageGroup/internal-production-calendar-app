@@ -8,13 +8,7 @@
     <IsPackable>false</IsPackable>
     <InvariantGlobalization>false</InvariantGlobalization>
     <RootNamespace>GarageGroup.Internal.ProductionCalendar</RootNamespace>
-    <AssemblyName>GarageGroup.Internal.ProductionCalendar.Endpoint.ProductionCalendarDay.Get.Contract</AssemblyName>
+    <AssemblyName>GarageGroup.Internal.ProductionCalendar.Shared.DayType</AssemblyName>
   </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="../../../shared/DayType/DayType.csproj" />
-    <PackageReference Include="PrimeFuncPack.Core.Failure" Version="2.2.0" />
-    <PackageReference Include="PrimeFuncPack.Core.Result" Version="2.0.2" />
-  </ItemGroup>
 
 </Project>

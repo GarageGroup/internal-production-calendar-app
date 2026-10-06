@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/shared/">
+    <Project Path="src/shared/DayType/DayType.csproj" />
+  </Folder>
   <Folder Name="/service/" />
   <Folder Name="/service/ProductionCalendar/">
     <Project Path="src/service/ProductionCalendar/Contract/Contract.csproj" />

@@ -62,7 +62,7 @@ AzureFunc
 
 ## Контракты первого инкремента
 
-- Общие `DayType`, `DayTypeExtensions.IsWorkingDay()` и `ProductionCalendarDay` находятся в `ProductionCalendar.Contract`. `IsWorkingDay` — вычисляемое свойство модели и GetOut, без независимо задаваемого флага. Неизвестный enum вызывает ArgumentOutOfRangeException; вход и данные Storage должны проверяться до построения успешного результата.
+- Общие `DayType` и `DayTypeExtensions.IsWorkingDay()` находятся в `Shared.DayType`; `ProductionCalendarDay` принадлежит контракту календарного сервиса. `IsWorkingDay` — вычисляемое свойство только GetOut, без независимо задаваемого флага. Неиспользуемое свойство сервисной модели удалено по ревью 2026-10-07. Неизвестный enum вызывает ArgumentOutOfRangeException; вход и данные Storage должны проверяться до построения успешного результата.
 - Построение: `ProductionCalendarBuildIn` (Country, Year, Days), `ProductionCalendarBuildOut` (Country, Year, FlatArray дней), `IProductionCalendarBuildSupplier.BuildAsync` и `IProductionCalendarApi`.
 - Storage: `ProductionCalendarDayStorageGetIn/GetOut`, `ProductionCalendarDayStorageSetIn`, `GetDayAsync` и `SetDayAsync`. Запись возвращает Unit; ключи и Table entity скрыты в будущей реализации.
 - Endpoints: `ProductionCalendarDayGetIn/GetOut` и `ProductionCalendarInitializeIn/Out`, отдельные интерфейсы handlers с HandleAsync.
@@ -80,7 +80,7 @@ AzureFunc
 
 `ProductionCalendarApi` не содержит состояния отдельных запросов и не использует Azure/HTTP. Публичный entry point композиции — `ProductionCalendarApiDependency.UseProductionCalendarApi()`, возвращающий `Dependency<IProductionCalendarApi>` через `Dependency.From` с фабрикой без зависимостей.
 
-С 2026-10-07 контракт построения и инициализации содержит Country, Year и Days: required FlatArray<ProductionCalendarDayOverride>. Общая модель override объявлена в ProductionCalendar.Contract: required DateOnly Date, required DayType Type, nullable string Comment. Строковое поле Json удалено из обоих входов. Внутренние CalendarJson/CalendarDayJson удалены: сервис больше не зависит от JSON-десериализации.
+С 2026-10-07 контракты построения и инициализации содержат Country, Year и Days. BuildIn использует required FlatArray<ProductionCalendarDayOverride> из ProductionCalendar.Contract, InitializeIn — required FlatArray<ProductionCalendarInitializeDay> из собственного endpoint Contract. Обе модели содержат required DateOnly Date, required DayType Type, nullable string Comment; handler явно маппит модели. Строковое поле Json удалено из обоих входов. Внутренние CalendarJson/CalendarDayJson удалены: сервис больше не зависит от JSON-десериализации.
 
 BuildAsync использует AsyncPipeline: ValidateInput → ValidateOverrides → BuildCalendar. Страна нормализуется через OrEmpty/Trim/ToUpperInvariant; год проверяется на диапазон 1–9999. Все overrides валидируются до генерации: дата внутри года, определённый enum, отсутствие null-элементов и повторяющихся дат. Dictionary<DateOnly, ProductionCalendarDay> хранит уникальные overrides. Type напрямую маппится из enum в бизнес-модель.
 
@@ -119,3 +119,20 @@ HandleAsync использует AsyncPipeline: BuildStorageGetIn (нормал�
 GetOut сохраняет Country, Date, DayType и nullable Comment из StorageGetOut. IsWorkingDay не задаётся отдельно: вычисляемое свойство контракта вызывает общий DayTypeExtensions, WorkingDay/ShortenedDay дают true, Weekend/Holiday — false. StorageFailureCode.Invalid/NotFound явно маппятся в соответствующие endpoint codes; остальные — Unknown, диагностический Failure сохраняется через MapFailureCode.
 
 Токен передаётся AsyncPipeline и storage supplier; явных проверок отмены или catch нет. Проверены сборка и структура веток по коду, runtime-вызовы и HTTP-ответы пока не проверены: composition root и функции реализуются на этапе 6. Тесты не создаются.
+## Handler инициализации — инкремент 5 (2026-10-07)
+
+ProductionCalendarInitializeHandler зависит от IProductionCalendarBuildSupplier и IProductionCalendarDayStorageSetSupplier. Публичная generic-фабрика Dependency<TCalendarApi, TStorageApi>.UseProductionCalendarInitializeHandler использует Fold и проверяет dependency и оба supplier, по аналогии с DailyExchangeRateUpdateHandlerDependency образца. Основной partial-класс и Handler.Handle.cs разделены; заполненная папка больше не содержит .gitkeep. Новые пакеты не требуются.
+
+HandleAsync через BuildCalendarIn маппит InitializeIn и каждый ProductionCalendarInitializeDay в BuildIn/ProductionCalendarDayOverride, отклоняет null-элементы как Invalid, затем вызывает BuildAsync, переводит Invalid/Unknown и только в успешной ветке передаёт полный BuildOut в SaveCalendarAsync. Проверки country/year/дат/типов/дубликатов выполняются сервисом календаря до первого вызова SetDayAsync; handler доверяет успешной модели build supplier. JSON остаётся ответственностью будущего HTTP-адаптера.
+
+SaveCalendarAsync использует установленный AsyncPipeline.Extensions 0.4.1: PipeParallelValue, DegreeOfParallelism=1, FailureAction=Stop. Образец использует тот же механизм с четырьмя параллельными операциями; здесь выбран один одновременный вызов для последовательной записи и прекращения при ошибке. SaveDayAsync маппит каждый день в StorageSetIn, включая nullable Comment, и передаёт токен в Storage. Записываются все 365/366 дней; replace-upsert очищает старые overrides и комментарии.
+
+Все failures Storage маппятся в InitializeFailureCode.Unknown: исходная модель уже прошла валидацию, поэтому отказ записи является сбоем сохранения. Диагностическое сообщение включает Country|Year, Date и исходный FailureMessage; SourceException сохраняется. BuildFailureCode.Invalid остаётся Invalid с исходной диагностикой. Отмена не перехватывается, явных проверок отмены нет.
+
+Ответ Country/Year/DaysCount формируется после успешной записи всей коллекции. Атомарность года и сериализация конкурирующих инициализаций не добавлены: при ошибке часть записей может уже измениться, повтор полного вызова восстанавливает календарь. Выполнены Release build и просмотр веток по исходникам; проверки с Azure отложены до этапов 6–7. Тесты не создаются по требованию пользователя.
+
+## Независимые контракты и Shared — замечание ревью 2026-10-07
+
+По требованию пользователя DTO каждого слоя принадлежат своему Contract. Contract-проекты не ссылаются друг на друга; разрешён общий проект src/shared/DayType/DayType.csproj, содержащий только DayType и DayTypeExtensions, без зависимостей от приложения, endpoints и сервисов. Namespace сохранён GarageGroup.Internal.ProductionCalendar; AssemblyName — GarageGroup.Internal.ProductionCalendar.Shared.DayType. Solution содержит десять production-проектов.
+
+Устранены ссылки на ProductionCalendar.Contract из Storage.Contract и обоих endpoint Contract. В ProductionCalendar.Initialize.Contract добавлена собственная ProductionCalendarInitializeDay; FlatArray подключён напрямую пакетом версии 1.5.1. BuildCalendarIn создаёт сервисные overrides через Builder.OfLength/MoveToFlatArray и проверяет null до чтения полей. В Get handler удалена лишняя прямая ссылка на контракт календарного сервиса. Зависимости реализаций handlers от supplier-контрактов остаются необходимыми для вызова сервисов; их публичные endpoint-контракты теперь независимы.

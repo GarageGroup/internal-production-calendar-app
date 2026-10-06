@@ -12,8 +12,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../service/ProductionCalendar/Contract/Contract.csproj" />
+    <ProjectReference Include="../../../shared/DayType/DayType.csproj" />
     <PackageReference Include="PrimeFuncPack.Core.Failure" Version="2.2.0" />
+    <PackageReference Include="PrimeFuncPack.Core.FlatArray" Version="1.5.1" />
     <PackageReference Include="PrimeFuncPack.Core.Result" Version="2.0.2" />
   </ItemGroup>
 

@@ -1,3 +1,5 @@
+using System;
+
 namespace GarageGroup.Internal.ProductionCalendar;
 
 public readonly record struct ProductionCalendarInitializeIn
@@ -6,5 +8,5 @@ public readonly record struct ProductionCalendarInitializeIn
 
     public int Year { get; init; }
 
-    public required string Json { get; init; }
+    public required FlatArray<ProductionCalendarDayOverride> Days { get; init; }
 }

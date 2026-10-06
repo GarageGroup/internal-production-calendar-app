@@ -33,7 +33,7 @@
 4. Адаптировать shell scripts без ссылок на обменные курсы/Dataverse; валидировать inputs и не выводить credentials.
 5. Создать workflows по соседнему README; проверить Bicep build, Bash syntax и .NET Release publish.
 6. Подготовить инструкцию OIDC и RBAC с конкретными scopes предоставленной среды, без выполнения команд над неизвестными ресурсами.
-7. Настроить GitHub Environments Test/Prod, сначала установить Test, затем publish/redeploy/smoke test.
+7. Настроить GitHub Environments Test/Prod, сначала установить Test, затем publish/redeploy и ручную проверку. Тестовый код и test-стадии не добавлять по решению пользователя от 2026-10-07.
 8. Обновить этот документ реальными командами, списком обязательных параметров и проверенным порядком действий.
 
 ## Параметры GitHub

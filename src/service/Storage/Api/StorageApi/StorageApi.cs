@@ -23,15 +23,6 @@ internal sealed partial class StorageApi : IStorageApi
 
     internal StorageApi(IHttpApi httpApi, StorageOption option)
     {
-        if (option.ServiceUri is null
-            || option.ServiceUri.IsAbsoluteUri is false
-            || option.ServiceUri.Scheme is not ("http" or "https")
-            || string.IsNullOrEmpty(option.ServiceUri.Query) is false
-            || string.IsNullOrEmpty(option.ServiceUri.Fragment) is false)
-        {
-            throw new ArgumentException("Storage service URI must be an absolute HTTP or HTTPS URI without query or fragment.", nameof(option));
-        }
-
         if (option.TableName is not "ProductionCalendar")
         {
             throw new ArgumentException("Storage table name must be ProductionCalendar.", nameof(option));
@@ -61,7 +52,7 @@ internal sealed partial class StorageApi : IStorageApi
 
     private string BuildEntityUrl(string partitionKey, string rowKey)
         =>
-        $"{option.ServiceUri.AbsoluteUri.TrimEnd('/')}/{option.TableName}"
+        $"{option.TableName}"
             + $"(PartitionKey='{Uri.EscapeDataString(partitionKey)}',RowKey='{Uri.EscapeDataString(rowKey)}')";
 
     private static FlatArray<KeyValuePair<string, string>> BuildHeaders()

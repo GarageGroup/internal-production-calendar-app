@@ -10,7 +10,7 @@
 | `modules/storage-access.bicep` | Сохранить Managed Identity role assignments для Table и host/deployment Blob storage |
 | `apim/main.bicep` | Существующий APIM; сначала проверка placeholder, затем операции только по согласованному HTTP-контракту |
 | `scripts/install-azure-resources.sh` | Валидация параметров, resource group, providers, Incremental deployment, outputs |
-| `scripts/set-function-app-settings.sh` | Установка host settings и ProductionCalendar__Storage__ServiceUri/TableName |
+| `scripts/set-function-app-settings.sh` | Установка host settings и StorageApi__BaseAddress/TableName |
 | `scripts/prepare-apim.sh` | Проверка существующего APIM и согласованной конфигурации |
 
 Сохранить базовую инфраструктуру образца: North Europe, Linux Flex Consumption FC1, dotnet-isolated 10.0, StorageV2, Application Insights и Log Analytics, deployment Blob container, SystemAssigned Managed Identity.
@@ -19,8 +19,8 @@
 
 ## Отличия от образца
 
-- Namespace settings: `ProductionCalendar:Storage:ServiceUri` и `ProductionCalendar:Storage:TableName`. Azure environment variables используют двойное подчёркивание.
-- Storage API проверяет TableName=ProductionCalendar при создании; имя таблицы в Bicep и app settings должно точно совпадать. ServiceUri для Azure — абсолютный HTTPS endpoint без query/fragment.
+- Namespace settings: `StorageApi:BaseAddress` и `ProductionCalendar:Storage:TableName`. Azure environment variables используют двойное подчёркивание.
+- Storage API проверяет TableName=ProductionCalendar при создании; имя таблицы в Bicep и app settings должно точно совпадать. StorageApi:BaseAddress для Azure — HTTPS endpoint таблиц без query/fragment с завершающим /. StorageApi:Timeout — 01:00:00.
 - Нет CurrencyPairs, CurrentRates/DailyRates, schedule обновления курсов и бизнес-таймеров.
 - В требованиях календаря нет Dataverse. Не копировать dataverseServiceUrl, Application User и grant-dataverse script/jobs. Если интеграция потребуется отдельно, добавить её отдельным согласованным этапом.
 - Не наследовать конкретные имена ресурсов, subscription IDs, секреты и values из образца. Имя приложения по умолчанию в примерах: `internal-production-calendar`.
@@ -68,3 +68,9 @@ Deployment principal: права создания ресурсов и role assig
 - Publish создаёт ZIP с Info.ApiVersion/BuildDateTime; Test и Prod получают один и тот же ZIP, без повторной сборки при продвижении.
 - Возврат на предыдущую версию — deploy существующего ZIP; он не отменяет изменения календарных данных, внесённые вызовами инициализации.
 - Delete удаляет релизный ZIP/tag по образцу, а не таблицу или календарь. Перед переносом проверить права checkout/push и семантику удаления релиза.
+
+## Актуализация 2026-10-07 — Functions host
+
+На этапе 6 реализованы два HTTP endpoint и инфраструктурный RefreshAzureTokens (assembly RefreshableTokenCredential по образцу, каждые 30 минут). Timer extension нужен для обновления credential, бизнес-таймеров нет. StorageApi:BaseAddress задаётся средой, TableName=ProductionCalendar. Host Storage требуется для работы timer. local.settings.json исключён из Git. Build/publish успешны; реальная среда Storage и CI/CD ещё не реализованы.
+
+Решение пользователя 2026-10-07: инфраструктура/CI/CD и развёртывание Test выполняются инкрементом 7, до интеграционной проверки. Ручная проверка обеих операций и идемпотентности — отдельный инкремент 8 в этой Test-среде. Следующий инкремент пока не начинать.

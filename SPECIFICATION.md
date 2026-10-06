@@ -55,13 +55,13 @@ Entity использует строковое свойство `DayType`; ма�
 
 Ожидаемые ошибки: некорректный вход — Invalid; отсутствующая entity — NotFound; сбой Storage или повреждённая entity — Unknown с диагностикой. Проверять, что бизнес-поле Date соответствует ключу и запрошенной дате; неизвестный тип Storage не подменять WorkingDay.
 
-Storage API реализован на этапе 3: GET/PUT по entity URL с PartitionKey/RowKey, явная проверка ключей и Date ответа, строковый DayType. Входной nullable Comment на записи преобразуется OrEmpty и всегда передаётся строкой. Имя таблицы фиксировано ProductionCalendar; настройки содержат ServiceUri и TableName, неправильная конфигурация отклоняется при создании Api. Реальные вызовы Azure пока не проверены.
+Storage API реализован на этапе 3: GET/PUT по entity URL с PartitionKey/RowKey, явная проверка ключей и Date ответа, строковый DayType. Входной nullable Comment на записи преобразуется OrEmpty и всегда передаётся строкой. Имя таблицы фиксировано ProductionCalendar; StorageOption содержит только TableName; адрес/таймаут читает UseHttpApi("StorageApi"). Неверное имя таблицы отклоняется при создании StorageApi. Реальные вызовы Azure пока не проверены.
 
-Handler получения реализован на этапе 4: Country нормализуется и валидируется до вызова Storage, Date передаётся без изменения, выполняется одно чтение. GetOut содержит Country/Date/DayType/Comment и вычисляемое IsWorkingDay по общей таблице правил. Ошибки Storage переводятся в endpoint Invalid/NotFound/Unknown без fallback даты. HTTP endpoint пока не реализован.
+Handler получения реализован на этапе 4: Country нормализуется и валидируется до вызова Storage, Date передаётся без изменения, выполняется одно чтение. GetOut содержит Country/Date/DayType/Comment и вычисляемое IsWorkingDay по общей таблице правил. Ошибки Storage переводятся в endpoint Invalid/NotFound/Unknown без fallback даты. HTTP endpoint реализован на этапе 6; негативные ответы вручную проверены, успешное чтение требует среды Storage.
 
 ## Инициализация
 
-Вход handler инициализации — полная типизированная модель: Country, Year и required FlatArray<ProductionCalendarInitializeDay> Days. Handler маппит её в сервисный BuildIn с FlatArray<ProductionCalendarDayOverride>. Каждый элемент содержит required DateOnly Date, required DayType Type и nullable string Comment. Отдельного поля Json нет. Будущий HTTP-адаптер читает country/year/days из единого JSON-тела и маппит его в эту модель.
+Вход handler инициализации — полная типизированная модель: Country, Year и required FlatArray<ProductionCalendarInitializeDay> Days. Handler маппит её в сервисный BuildIn с FlatArray<ProductionCalendarDayOverride>. Каждый элемент содержит required DateOnly Date, required DayType Type и nullable string Comment. Отдельного поля Json нет. HTTP-адаптер читает country/year/days из единого JSON-тела и маппит его в эту модель.
 
 ```json
 {
@@ -92,8 +92,8 @@ Handler получения реализован на этапе 4: Country но�
 - Country: после Trim ровно две ASCII-буквы, нормализация `ToUpperInvariant()`. Это синтаксическая проверка, без справочника поддерживаемых стран.
 - Year: 1–9999, формат года в partition всегда четыре цифры.
 - Country/Year задаются один раз в модели; в HTTP-теле они обязательны. Дублирование этих значений в параметрах метода и отдельном JSON устранено.
-- `days` обязателен, `[]` допустим и создаёт базовый календарь. Null вместо массива/элемента — Invalid.
-- В контракте endpoint Days — required FlatArray<ProductionCalendarInitializeDay>, в контракте построения — required FlatArray<ProductionCalendarDayOverride>; модели принадлежат своим слоям, handler выполняет маппинг. Обе коллекции без nullable; пустая коллекция допустима. Отсутствие/null days в JSON проверяет HTTP-адаптер, учитывая поведение конвертера FlatArray. Сервис не десериализует JSON.
+- `days` обязателен; `[]` и null допустимы и создают базовый календарь. Null-элемент внутри массива — Invalid.
+- В контракте endpoint Days — required FlatArray<ProductionCalendarInitializeDay>, в контракте построения — required FlatArray<ProductionCalendarDayOverride>; модели принадлежат своим слоям, handler выполняет маппинг. Обе коллекции без nullable; пустая коллекция допустима. Отсутствие days отклоняется через required; JSON null штатный конвертер FlatArray преобразует в пустую коллекцию. Сервис не десериализует JSON.
 - Date в модели — DateOnly, в HTTP JSON — строгая строка `yyyy-MM-dd`. Сервис проверяет принадлежность даты выбранному году; HTTP-адаптер проверяет формат строки.
 - Type в модели — DayType; сервис отклоняет неопределённые значения enum. HTTP-адаптер принимает только четыре точных строковых имени, регистр значим; числа, числовые строки и составные значения запрещены.
 - Одинаковая дата дважды — Invalid, даже если значения совпадают.
@@ -111,13 +111,13 @@ Handler получения реализован на этапе 4: Country но�
 
 Handler инициализации реализован на этапе 5: сначала BuildAsync валидирует всю модель и формирует полный год, затем каждый день сохраняется через point replace-upsert. Запись использует PipeParallelValue с DegreeOfParallelism=1 и FailureAction=Stop. Ошибка построения Invalid возвращается до первой записи; любой сбой Storage после построения возвращается как Unknown с контекстом страны, года и даты и сохранённым SourceException. Успех содержит нормализованный Country, Year и DaysCount из полного календаря только после завершения всех записей. Атомарная запись всего года не обещается: при сбое возможен частично обновлённый год, повтор полной инициализации восстанавливает результат. Не возвращать успех при частичной записи. Конкурирующие инициализации одной partition пока не сериализуются: выполнять их последовательно на стороне вызывающего процесса. Блокировки, batch и версии календаря — отдельное расширение при необходимости.
 
-## Предварительный HTTP-контракт
+## HTTP-контракт
 
-На этапе HTTP закрепить маршруты и схемы документацией и ручной проверкой; автоматические тесты исключены пользователем:
+Маршруты и схемы реализованы на этапе 6; автоматические тесты исключены пользователем:
 
 - `GET /api/production-calendar/{country}/{date}` → 200 с моделью дня; 400 Invalid; 404 NotFound; 500 Unknown.
 - `POST /api/production-calendar/initialize` → единое JSON-тело country/year/days; 200 с Country, Year, DaysCount после полной записи; 400 Invalid; 500 Unknown.
 - `AuthorizationLevel.Function`, как у HTTP endpoints образца; JSON свойства ответа camelCase, DayType строкой.
 - Ошибки в стиле образца: `{ "error": "..." }`; не включать секреты и подробности инфраструктурных исключений в HTTP-ответ.
 
-Маршруты остаются предварительными: HTTP API ещё не реализован. Модель ответа инициализации и её формирование уже реализованы в handler; подключение к HTTP относится к этапу 6.
+HTTP API реализован: transport DTO отделены от endpoint DTO, вывод camelCase, enum строкой. Unknown возвращает обобщённое сообщение без инфраструктурной диагностики; JsonException даёт 400. Отмена передаётся в чтение/запись JSON и handler, не перехватывается.

@@ -49,7 +49,7 @@
 
 ## Этап 3. Azure Table Storage API
 
-- [x] `Option/StorageOption.cs`: ServiceUri и TableName `ProductionCalendar`.
+- [x] `Option/StorageOption.cs`: только TableName `ProductionCalendar`; адрес/таймаут вынесены в IHttpApi на ревью этапа 6.
 - [x] `Internal.Table/ProductionCalendarDayTableEntity.cs`: string PartitionKey, RowKey, Date, DayType, Comment; явные JSON имена, соответствующие Storage.
 - [x] `StorageApi/StorageApi.cs`: константы REST, headers, форматирование ключей и URL, общие проверки.
 - [x] `Api.Day.Get.cs`: AsyncPipeline → validation/point URL → IHttpApi.SendAsync → entity decode/validation → business output.
@@ -100,40 +100,42 @@
 
 ## Этап 6. Azure Functions и composition root
 
-- [ ] Переключить AzureFunc `OutputType` на Exe и добавить `Program.cs` с `FunctionHost.CreateFunctionsWorkerBuilderStandard().Build().RunAsync()`.
-- [ ] `Application/Application.cs`: UseStorageApi, UseProductionCalendarApi, ResolveStorageOption; конфигурация из IConfiguration.
-- [ ] `App.ProductionCalendar.Day.Get.cs` и `App.ProductionCalendar.Initialize.cs`: сборка handler dependencies.
-- [ ] HTTP pipeline Storage: StandardSocketsHttpHandler → logging → TokenCredentialStandard → PollyStandard → HttpApi → option → StorageApi.
-- [ ] Настройка обновления credential по образцу; проверить необходимость timer extension для инфраструктурного credential refresh, не добавлять бизнес-таймеры календаря.
-- [ ] `Function/Function.cs`, `Function.ProductionCalendar.Day.Get.cs`, `Function.ProductionCalendar.Initialize.cs`.
-- [ ] Строго разбирать route date чтения; для инициализации читать единое JSON-тело Country/Year/Days, проверять поля и маппить Date/Type в типизированную модель; передавать токен, маппить Result в HTTP; не выполнять бизнес-генерацию в Function.
-- [ ] `host.json`, `appsettings.json` с Info и ProductionCalendar:Storage; документировать локальные настройки без хранения секретов.
-- [ ] Закрепить camelCase и строковую JSON-сериализацию DayType с запретом числового input.
-- [ ] Проверить необходимый набор Worker/GarageGroup пакетов, удалить ненужные прямые зависимости образца.
+- [x] Переключить AzureFunc `OutputType` на Exe и добавить `Program.cs` с `FunctionHost.CreateFunctionsWorkerBuilderStandard().Build().RunAsync()`.
+- [x] `Application/Application.cs`: UseStorageApi, UseProductionCalendarApi, ResolveStorageOption; конфигурация из IConfiguration.
+- [x] `App.ProductionCalendar.Day.Get.cs` и `App.ProductionCalendar.Initialize.cs`: сборка handler dependencies.
+- [x] HTTP pipeline Storage: StandardSocketsHttpHandler → logging → TokenCredentialStandard → PollyStandard → HttpApi → option → StorageApi.
+- [x] Настройка обновления credential по образцу; проверить необходимость timer extension для инфраструктурного credential refresh, не добавлять бизнес-таймеры календаря.
+- [x] `Function/Function.cs`, `Function.ProductionCalendar.Day.Get.cs`, `Function.ProductionCalendar.Initialize.cs`.
+- [x] Строго разбирать route date чтения; для инициализации читать единое JSON-тело Country/Year/Days, проверять поля и маппить Date/Type в типизированную модель; передавать токен, маппить Result в HTTP; не выполнять бизнес-генерацию в Function.
+- [x] `host.json`, `appsettings.json` с Info и ProductionCalendar:Storage; документировать локальные настройки без хранения секретов.
+- [x] Закрепить camelCase и строковую JSON-сериализацию DayType с запретом числового input.
+- [x] Проверить необходимый набор Worker/GarageGroup пакетов, удалить ненужные прямые зависимости образца.
 
 Готовность: host запускается локально; оба маршрута работают; ошибки имеют согласованные коды; `dotnet publish` создаёт пакет Functions с metadata и host.json.
 
-## Этап 7. Интеграционная проверка
+Проверка 2026-10-07: Release build/publish успешны, 0 ошибок/предупреждений; metadata содержит два HTTP endpoint и RefreshAzureTokens, host.json/worker.config.json присутствуют. Core Tools запустил host; вручную подтверждены 400 для неверной даты, null/отсутствия days, неверного регистра type и числового type. Успешные Storage GET/PUT, 404 и refresh требуют среды и остаются на этапе 8. Повторный запуск host с URI эмулятора отклонён автоматической проверкой команд (blocked by policy, подробная причина отсутствует). Тесты не создавались. Инкремент 5 закоммичен: 6d2a63a; инкремент 6 ожидает ревью без коммита.
 
-- [ ] Локальный совместимый Table Storage emulator или отдельная Test-среда; настройку авторизации для emulator изолировать от production composition.
-- [ ] Инициализировать невисокосный и високосный годы, прочитать обычный рабочий день, Weekend, Holiday, рабочую субботу и ShortenedDay.
-- [ ] Повторить с изменённым и пустым JSON, проверить восстановление базового типа и очистку Comment.
-- [ ] Проверить изоляцию страны/года и отсутствие дубликатов; отрицательные HTTP сценарии.
-- [ ] Проверить прямое представление entity: Date и DayType строковые и читаемые.
-- [ ] Restore/build/publish Release; обновить PROJECT_GUIDE.md с рабочими командами и примерами. Корневой README.md зарезервирован пользователем для другой информации.
-
-Готовность: выполнены ручные проверки поведения и идемпотентности в доступной среде. Автоматические тесты не создаются. Праздничные даты в примерах не считаются официальным календарём.
-
-## Этап 8. Инфраструктура и CI/CD
+## Этап 7. Инфраструктура и CI/CD
 
 - [ ] Выполнить подробный план `.infra/README.md` и `.github/workflows/README.md`.
 - [ ] Адаптировать Bicep и scripts, создать одну таблицу ProductionCalendar; сохранить Flex Consumption, Managed Identity, RBAC, Test/Prod, OIDC и ZIP lifecycle.
 - [ ] Создать build/publish/deploy/install/delete workflows по образцу; календарные settings вместо курсов/таймеров, без ненужной Dataverse-конфигурации.
 - [ ] Проверить Bicep build, `bash -n`, restore/build/publish и схему workflows.
-- [ ] Настроить предоставленные параметры GitHub/Azure, установить Test, выпустить версию и выполнить ручную проверку обоих действий.
+- [ ] Настроить предоставленные параметры GitHub/Azure, установить Test и развернуть опубликованный артефакт через CI/CD. Проверку бизнес-поведения выполнить следующим инкрементом 8 в этой Test-среде.
 - [ ] Проверить развёртывание выбранного существующего ZIP в Prod и сценарий возврата на предыдущую версию по согласованным параметрам среды.
 
 Готовность: одинаковый артефакт продвигается между средами; credentials приложения — Managed Identity; CI проверяет сборку и инфраструктуру без тестовых стадий; инструкция развёртывания воспроизводима.
+
+## Этап 8. Интеграционная проверка
+
+- [ ] Использовать Azure Test-среду, развёрнутую на этапе 7 через CI/CD; проверить доступ к Function App и ProductionCalendar через Managed Identity/RBAC.
+- [ ] Инициализировать невисокосный и високосный годы, прочитать обычный рабочий день, Weekend, Holiday, рабочую субботу и ShortenedDay.
+- [ ] Повторить с изменёнными days, days:[] и days:null, проверить восстановление базового типа и очистку Comment.
+- [ ] Проверить изоляцию страны/года и отсутствие дубликатов; отрицательные HTTP сценарии.
+- [ ] Проверить прямое представление entity: Date и DayType строковые и читаемые.
+- [ ] Restore/build/publish Release; обновить PROJECT_GUIDE.md с рабочими командами и примерами. Корневой README.md зарезервирован пользователем для другой информации.
+
+Готовность: выполнены ручные проверки поведения и идемпотентности в доступной среде. Автоматические тесты не создаются. Праздничные даты в примерах не считаются официальным календарём.
 
 ## Результат проверки каркаса
 
@@ -144,3 +146,10 @@
 - Проверены ProjectReference и отсутствие оставшихся имён ExchangeRates в `.csproj`.
 
 Бизнес-логика и тесты поведения пока отсутствуют. `dotnet test` и запуск хоста на этом этапе не выполнялись. Следующий этап — 1, контракты и бизнес-модель.
+
+Ревью инкремента 6 (2026-10-07): удалён собственный GetRequiredValue; чтение настроек через GetRequiredSection().Value.OrEmpty(). Release build — 0 ошибок/предупреждений, без коммита.
+
+Ревью 2026-10-07: UseHttpApi("StorageApi") читает BaseAddress/Timeout; ServiceUri удалён из StorageOption, URL сервиса относительный. Release build успешен, 0 ошибок/предупреждений; интеграция с Storage остаётся этапом 8.
+Ревью 2026-10-07: транспортный Days — required FlatArray без nullable. По последующему согласованию с пользователем собственный конвертер удалён: required проверяет наличие, null и [] допустимы. Release build успешен, 0 ошибок/предупреждений; без коммита.
+
+Решение пользователя 2026-10-07: этапы переставлены — инкремент 7 инфраструктура/CI/CD и развёртывание Test; инкремент 8 ручная интеграционная проверка там же. Текущие изменения одобрены к коммиту. Следующий шаг не начинать до отдельной команды пользователя.

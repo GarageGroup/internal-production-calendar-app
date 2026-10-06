@@ -4,9 +4,9 @@
 
 ## Текущий этап
 
-Созданы десять проектов приложения .NET 10, включая общий src/shared/DayType. Инкременты 1–4 одобрены и закоммичены: 40c016b (контракты), c206593 (построение календаря), da90587 (Storage API), 277057c (handler получения дня). Инкремент 5 реализует handler инициализации: построение и полная валидация года, последовательная запись всех дней, остановка при ошибке и итоговый DaysCount; после замечания ревью контракты слоёв разделены, добавлена собственная ProductionCalendarInitializeDay и маппинг в сервисную модель. Инкремент ожидает ревью без коммита. По решению пользователя от 2026-10-07 тесты не создаются. HTTP-функции, инфраструктура и workflows будут добавляться по [плану](IMPLEMENTATION_PLAN.md).
+Созданы десять проектов приложения .NET 10. Инкременты 1–5 одобрены и закоммичены: 40c016b (контракты), c206593 (построение), da90587 (Storage), 277057c (Get handler), 6d2a63a (Initialize handler и исправления ревью). Инкремент 6 реализован, исправления ревью приняты пользователем; разрешён коммит: Functions host, composition root, HTTP-маршруты и отдельные JSON-модели. Тесты не создаются по решению пользователя.
 
-`AzureFunc` пока собирается как библиотека (`OutputType=Library`), поскольку у пустого проекта нет точки входа. На этапе хоста добавить `Program.cs` и переключить `OutputType` на `Exe`. Сейчас это не запускаемое приложение Azure Functions.
+AzureFunc теперь OutputType=Exe. Release build/publish успешны; Core Tools 4.8.0 запустил worker и зарегистрировал оба HTTP-маршрута. Вручную подтверждены ответы 400 для неверной даты и некорректного JSON. Успешные чтение/запись в Table Storage и credential refresh со Storage пока не проверены; это этап 8, после развёртывания Test через CI/CD на этапе 7.
 
 ## Документация
 
@@ -68,12 +68,27 @@ dotnet build Internal.ProductionCalendar.slnx --no-restore -c Release
 
 Тестовых проектов и зависимостей нет. Верификация проекта — сборка и применимые ручные проверки; написание тестов исключено пользователем. История ранее выполненных проверок сохранена в DEVELOPMENT_LOG.md.
 
-После одобрения инкремента 5: коммит, затем этап 6 плана — Azure Functions, HTTP-контракты и composition root.
+Следующий инкремент 7 — инфраструктура, CI/CD и развёртывание Test; затем инкремент 8 — ручная интеграционная проверка в этой среде. По команде пользователя от 2026-10-07 текущие изменения коммитятся, следующий инкремент пока не начинается.
 
 Замечания ревью от 2026-10-06 учтены: Comment nullable без инициализатора; модель построенного календаря сохраняет отсутствие комментария как null, будущая запись Storage применяет OrEmpty. Null-forgiving не используется; сравнения следуют правилам is/is not.
 
 Коллекции по умолчанию — FlatArray, как в образце. Входные Days, генерация календаря и HTTP headers Storage используют FlatArray; Date — DateOnly, Type — DayType, Comment — nullable string. Отдельного поля Json нет; JSON входа обрабатывается будущим HTTP-адаптером.
 
-StorageOption требует ServiceUri и TableName=ProductionCalendar. Release-сборка успешна; реальные обращения к Azure отложены до хоста и конфигурации доступа. Storage API не создаёт таблицу — это задача инфраструктуры.
+StorageOption содержит только TableName=ProductionCalendar; адрес и таймаут настраиваются в блоке StorageApi через UseHttpApi. Release-сборка успешна; реальные обращения к Azure отложены до хоста и конфигурации доступа. Storage API не создаёт таблицу — это задача инфраструктуры.
 
 CancellationToken передаётся в AsyncPipeline и асинхронные зависимости. Явные ThrowIfCancellationRequested удалены по замечанию пользователя от 2026-10-07; чистые синхронные стадии не принимают токен.
+
+## Запуск и HTTP-контракт
+
+Сборка: `dotnet build Internal.ProductionCalendar.slnx -c Release`.
+Публикация: `dotnet publish src/app/AzureFunc/AzureFunc.csproj -c Release -o src/app/AzureFunc/bin/publish`.
+Локальный запуск из src/app/AzureFunc: `func start` после настройки среды.
+
+Локальный local.settings.json исключён из Git. Values должны содержать FUNCTIONS_WORKER_RUNTIME=dotnet-isolated, AzureWebJobsStorage (настройка host Storage), StorageApi__BaseAddress (URI Table endpoint). TableName по умолчанию ProductionCalendar; при необходимости задать ProductionCalendar__Storage__TableName с тем же значением. Для Storage pipeline требуется доступная Azure credential и роль Storage Table Data Contributor. Production composition использует credential для https://storage.azure.com/.default; shared key эмулятора не подставляется автоматически. Отключение AzureWebJobs.RefreshAzureTokens.Disabled=true допустимо только для локальных проверок, не требующих refresh. Реальные секреты и идентификаторы среды в документацию не вставлять.
+
+- GET /api/production-calendar/{country}/{date}, date строго yyyy-MM-dd. Ответ 200: date, country, isWorkingDay, dayType (строка), comment. Ошибки 400/404/500.
+- POST /api/production-calendar/initialize. Тело, например: {"country":"RU","year":2026,"days":[{"date":"2026-04-30","type":"ShortenedDay","comment":"Предпраздничный день"}]}. Ответ 200: country, year, daysCount. Ошибки 400/500.
+
+Country/year/days обязательны. Days=[] и Days=null допустимы и создают базовый календарь; отсутствие поля запрещено. Date/type каждого элемента обязательны, type — точное имя одного из четырёх DayType, числа запрещены. JSON-модели находятся по отдельным файлам Inernal.Json и маппятся в endpoint-модели. Days в транспортной модели — required FlatArray без nullable. Отсутствие отклоняет required; штатный конвертер FlatArray преобразует JSON null в пустую коллекцию, как согласовано с пользователем.
+
+Обе функции AuthorizationLevel.Function. Локальный Core Tools обычно не требует function key; в Azure требуется ключ. Ошибки имеют форму {"error":"..."}; сообщения Unknown обобщены, подробности Storage не публикуются в HTTP.

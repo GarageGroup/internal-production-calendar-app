@@ -284,3 +284,44 @@
 ## 2026-10-07 — одобрение инкремента 5
 
 Пользователь сообщил «продолжай»: handler инициализации и исправления ревью приняты. Выполняется коммит перед этапом 6.
+
+## 2026-10-07 — инкремент 6: Azure Functions, HTTP и composition root
+
+**Одобрение предыдущего:** пользователь сообщил «продолжай»; создан коммит 6d2a63a — Implement calendar initialization and separate layer contracts. Включены handler инициализации, Shared.DayType, собственные DTO слоёв и удаление лишнего IsWorkingDay.
+
+**Выполнено:** Program, Application и два App.* файла, Function и два Function.* файла; пять отдельных JSON DTO в Inernal.Json; host.json и appsettings.json; Exe вместо Library; удалены заполненные .gitkeep, local.settings.json исключён из Git. Реализованы GET дня и POST инициализации, строгий разбор даты/type, обязательные Country/Year/Days, status mapping и JSON вывод. Обновлены план, архитектура, спецификация, обзор и инструкции CI/CD по наличию credential timer.
+
+**Основа:** Program.cs, Application/Application.cs, App.ExchangeRate.Daily.Get.cs, App.ExchangeRate.Daily.Update.cs, Function/Function.ExchangeRate.Daily.Get.cs, host.json/appsettings.json образца. HTTP pipeline и PrimeFuncPack Dependency сохранены. Тесты не добавлялись, README пользователя не изменён.
+
+**Самостоятельные решения:** transport DTO независимы от endpoint DTO; nullable required Days позволяет отклонить null и отличить [] с учётом FlatArray converter. JSON Year обязательный и строго числовой; Type — string с точным switch; date — yyyy-MM-dd. Unknown возвращает обобщённую ошибку без подробностей Storage. Для сериализации используется JsonSerializer.SerializeAsync в Body с отдельными options, Content-Type и status; токен передаётся JSON и handlers, отмена не перехватывается. URI Storage должен задаваться средой; в отслеживаемом appsettings он пустой. Timer extension сохранён для assembly RefreshableTokenCredential с расписанием образца; business timers отсутствуют.
+
+**Проверки:** первоначальная сборка выявила ограничение Result на value type Failure; транспортный разбор исправлен на Failure<ProductionCalendarInitializeFailureCode>. Повторный Release build и publish успешны, 0 ошибок/предупреждений, десять проектов. Проверены metadata двух HTTP endpoints и RefreshAzureTokens, host.json и worker.config.json. Core Tools 4.8.0 запустил isolated worker на 7086; ручные curl вызовы дали 400 для 2026-02-30, days:null, отсутствующего days, type:holiday и числового type. Content-Type и JSON error подтверждены. Host остановлен. Тестовые scripts/harness не создавались.
+
+**Ограничения:** успешное сохранение/чтение, Storage 404 и credential refresh со средой не проверены. Во время локальных негативных запросов refresh отключён только environment override, host Storage не был доступен (health check timeout). Повторный запуск host с localhost URI эмулятора отклонён автоматическим review команд: blocked by policy; подробная причина не предоставлена. Интеграционная среда остаётся на этапе 7.
+
+**Статус:** инкремент 6 реализован, без коммита до ревью. Следующий шаг после одобрения — коммит и этап 7, ручная интеграционная проверка; затем инфраструктура/CI/CD.
+## 2026-10-07 — ревью инкремента 6: библиотечное чтение конфигурации
+
+По замечанию пользователя удалён собственный GetRequiredValue. После удаления сборка показала CS1061: в текущих подключённых библиотеках нет GetRequiredValue для IConfiguration. Использован доступный библиотечный GetRequiredSection(key).Value.OrEmpty(); ServiceUri и TableName далее проверяются существующими Uri/StorageApi. Собственный extension и новые пакеты не добавлены. Release build десяти проектов успешен, 0 ошибок/предупреждений. Тесты не создавались, изменения остаются в инкременте 6 без коммита до одобрения.
+## 2026-10-07 — ревью инкремента 6: UseHttpApi с конфигурацией
+
+Пользователь предложил UseHttpApi с блоком StorageApi (BaseAddress/Timeout), чтобы не передавать ServiceUri в сервис. Проверена установленная GarageGroup.Infra.Http.Api 1.1.0: UseHttpApi("StorageApi") доступна, BaseAddress/Timeout присутствуют в сборке. Перегрузка подключена; appsettings содержит StorageApi с пустым BaseAddress для настройки средой и Timeout=01:00:00. ServiceUri удалён из StorageOption и ResolveStorageOption; StorageApi формирует относительный entity URL. TableName и проверка ProductionCalendar сохранены.
+
+Самостоятельно документирован завершающий / у BaseAddress для сохранения path prefix. Актуализированы параметры инфраструктуры/CI и Markdown; история прежнего подхода сохранена в журнале. Release build десяти проектов успешен, 0 ошибок/предупреждений. Новые пакеты и тесты не добавлены; HTTP Storage runtime-проверка новой конфигурации остаётся на этапе 7. Исправление входит в инкремент 6, без коммита до одобрения.
+## 2026-10-07 — ревью инкремента 6: Days без nullable
+
+Пользователь указал на противоречивый вид required nullable FlatArray и попросил избежать такой записи. Days в ProductionCalendarInitializeJson теперь required FlatArray без nullable. Добавлен отдельный RequiredFlatArrayJsonConverter<T> в Inernal.Json, подключён атрибутом только к этому свойству. Read отклоняет JsonTokenType.Null через JsonException, остальные значения передаёт штатному конвертеру FlatArray; Write также делегирует стандартной сериализации. Регистрация на свойстве позволяет делегировать без рекурсии. Required сохраняет отклонение отсутствующего поля, [] остаётся допустимым. Из HTTP-маппинга удалены nullable-проверка Days и .Value.
+
+Обновлены AGENTS, архитектура, обзор и план. Исторические записи о nullable-обёртке сохраняются в журнале как прежнее решение. Release build десяти проектов успешен, 0 ошибок/предупреждений. Тесты не добавлялись; новые ручные HTTP-вызовы не выполнялись. Изменение входит в инкремент 6, без коммита до одобрения.
+## 2026-10-07 — решение пользователя: days:null эквивалентен []
+
+Пользователь явно подтвердил допустимость штатного поведения FlatArray: null вместо коллекции преобразуется в пустую коллекцию и создаёт базовый календарь. Удалены атрибут JsonConverter и RequiredFlatArrayJsonConverter.cs; Days остаётся required nonnullable FlatArray. Отсутствующее поле отклоняется required, null-элементы внутри массива по-прежнему Invalid. Обновлены инструкции, спецификация, архитектура, обзор и план; прежнее требование запрещать null коллекции отменено пользователем. Тесты не добавлялись. Исправление относится к инкременту 6, без коммита до одобрения.
+Проверка после изменения: Release build десяти проектов успешен, 0 ошибок/предупреждений.
+
+## 2026-10-07 — одобрение инкремента 6 и изменение порядка этапов
+
+Пользователь разрешил закоммитить текущие изменения и явно запретил пока начинать следующий шаг. Все исправления ревью инкремента 6 приняты: библиотечное чтение конфигурации, UseHttpApi("StorageApi") с BaseAddress/Timeout, относительный URL в сервисе, required nonnullable Days без собственного конвертера; days:null согласован как пустая коллекция.
+
+По требованию пользователя этапы переставлены: инкремент 7 — инфраструктура и CI/CD по образцу, развёртывание Azure Test; инкремент 8 — ручная интеграционная проверка в этой Test-среде. Обновлены план, обзор, архитектура, AGENTS и инструкции инфраструктуры/workflows. Старые записи журнала сохраняют прежний порядок как историю. Реализация CI/CD, создание Azure-ресурсов и deployment в этом ходе не начинаются.
+
+Проверка текущего кода: последняя Release-сборка десяти проектов после финального исправления успешна, 0 ошибок/предупреждений; повтор не требуется, менялась только документация. Тесты не создавались. Подготовлен коммит инкремента 6 и обновлённого порядка этапов; после него работа останавливается до отдельной команды пользователя.

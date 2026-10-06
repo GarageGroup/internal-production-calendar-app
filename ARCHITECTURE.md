@@ -86,7 +86,7 @@ BuildAsync использует AsyncPipeline: ValidateInput → ValidateOverrid
 
 Базовые дни заполняются по индексам от 1 января через FlatArray<ProductionCalendarDay>.Builder.OfLength и возвращаются посредством MoveToFlatArray; после 9999-12-31 нет шага AddDays за пределы DateOnly. Comment остаётся nullable, его нормализация для Storage относится к следующему слою. CancellationToken передаётся в AsyncPipeline; явных ThrowIfCancellationRequested нет по решению пользователя от 2026-10-07. Чистые синхронные стадии не принимают токен; цепочка использует группы методов без захватывающих лямбд.
 
-Будущий HTTP-адаптер принимает единое JSON-тело country/year/days, проверяет обязательность полей, null коллекции, строковые даты и точные имена enum, затем передаёт типизированный InitializeIn. JSON-модели при необходимости размещать по одной в Inernal.Json соответствующего транспортного проекта. Предложенный маршрут инициализации обновлён на POST /api/production-calendar/initialize: Country/Year больше не дублируются в маршруте и теле. Это предварительный маршрут, функции пока не реализованы.
+HTTP-адаптер принимает единое JSON-тело country/year/days, проверяет обязательность полей, null коллекции, строковые даты и точные имена enum, затем передаёт типизированный InitializeIn. JSON-модели при необходимости размещать по одной в Inernal.Json соответствующего транспортного проекта. Предложенный маршрут инициализации обновлён на POST /api/production-calendar/initialize: Country/Year больше не дублируются в маршруте и теле. Маршрут реализован на этапе 6.
 
 В Api нет HTTP Contract или JSON DTO; PrimeFuncPack.Primitives.Strings 3.0.0 используется для OrEmpty. FlatArray остаётся основным типом последовательностей; использованные возможности Builder/MoveToFlatArray сверены с исходниками установленной версии 1.5.1.
 
@@ -98,7 +98,7 @@ BuildAsync использует AsyncPipeline: ValidateInput → ValidateOverrid
 
 Добавлены StorageApi (основной partial-класс и Api.Day.Get.cs/Api.Day.Set.cs), StorageApiDependency, StorageOption и отдельная ProductionCalendarDayTableEntity в Internal.Table. Новые пакеты не требуются: IHttpApi, AsyncPipeline и Dependency используют зависимости каркаса.
 
-StorageOption содержит required ServiceUri и TableName; фабрика Dependency<IHttpApi, StorageOption>.Fold проверяет аргументы. При создании Api проверяются абсолютный HTTP/HTTPS URI без query/fragment и фиксированное имя ProductionCalendar. Ошибки конфигурации — ArgumentException при композиции; ошибки бизнес-входа — StorageFailureCode.Invalid до HTTP. HTTP разрешён для будущего локального emulator, production-настройки используют HTTPS.
+StorageOption содержит только required TableName; фабрика Fold проверяет аргументы, StorageApi проверяет фиксированное имя ProductionCalendar. BaseAddress/Timeout принадлежат IHttpApi, подключаются через UseHttpApi("StorageApi"). Сервис строит относительный entity URL. Production BaseAddress — HTTPS endpoint таблиц с завершающим /.
 
 GetDayAsync: AsyncPipeline → валидация страны/point URL → IHttpApi.SendAsync → проверка entity. PartitionKey — нормализованная страна и четырёхзначный год, RowKey — yyyyMMdd. Чтение выполняется через [адрес одной entity по обоим ключам](https://learn.microsoft.com/en-us/rest/api/storageservices/query-entities), без filter или сканирования. Код 404 маппится в NotFound, остальные HTTP failures — Unknown. Проверяются ожидаемые ключи, Date в формате yyyy-MM-dd и равенство запрошенной дате; DayType маппится switch только по четырём точным именам. JsonException и повреждённые значения возвращают Unknown; общий catch и ручные проверки отмены не применяются.
 
@@ -118,7 +118,7 @@ HandleAsync использует AsyncPipeline: BuildStorageGetIn (нормал�
 
 GetOut сохраняет Country, Date, DayType и nullable Comment из StorageGetOut. IsWorkingDay не задаётся отдельно: вычисляемое свойство контракта вызывает общий DayTypeExtensions, WorkingDay/ShortenedDay дают true, Weekend/Holiday — false. StorageFailureCode.Invalid/NotFound явно маппятся в соответствующие endpoint codes; остальные — Unknown, диагностический Failure сохраняется через MapFailureCode.
 
-Токен передаётся AsyncPipeline и storage supplier; явных проверок отмены или catch нет. Проверены сборка и структура веток по коду, runtime-вызовы и HTTP-ответы пока не проверены: composition root и функции реализуются на этапе 6. Тесты не создаются.
+Токен передаётся AsyncPipeline и storage supplier; явных проверок отмены или catch нет. Проверены сборка и структура веток по коду, runtime-вызовы и HTTP-ответы пока не проверены: composition root и функции реализованы на этапе 6; успешные чтение/запись требуют интеграционной проверки. Тесты не создаются.
 ## Handler инициализации — инкремент 5 (2026-10-07)
 
 ProductionCalendarInitializeHandler зависит от IProductionCalendarBuildSupplier и IProductionCalendarDayStorageSetSupplier. Публичная generic-фабрика Dependency<TCalendarApi, TStorageApi>.UseProductionCalendarInitializeHandler использует Fold и проверяет dependency и оба supplier, по аналогии с DailyExchangeRateUpdateHandlerDependency образца. Основной partial-класс и Handler.Handle.cs разделены; заполненная папка больше не содержит .gitkeep. Новые пакеты не требуются.
@@ -129,10 +129,32 @@ SaveCalendarAsync использует установленный AsyncPipeline.
 
 Все failures Storage маппятся в InitializeFailureCode.Unknown: исходная модель уже прошла валидацию, поэтому отказ записи является сбоем сохранения. Диагностическое сообщение включает Country|Year, Date и исходный FailureMessage; SourceException сохраняется. BuildFailureCode.Invalid остаётся Invalid с исходной диагностикой. Отмена не перехватывается, явных проверок отмены нет.
 
-Ответ Country/Year/DaysCount формируется после успешной записи всей коллекции. Атомарность года и сериализация конкурирующих инициализаций не добавлены: при ошибке часть записей может уже измениться, повтор полного вызова восстанавливает календарь. Выполнены Release build и просмотр веток по исходникам; проверки с Azure отложены до этапов 6–7. Тесты не создаются по требованию пользователя.
+Ответ Country/Year/DaysCount формируется после успешной записи всей коллекции. Атомарность года и сериализация конкурирующих инициализаций не добавлены: при ошибке часть записей может уже измениться, повтор полного вызова восстанавливает календарь. Выполнены Release build и просмотр веток по исходникам; проверки с Azure отложены до развёртывания Test на этапе 7 и проверки на этапе 8. Тесты не создаются по требованию пользователя.
 
 ## Независимые контракты и Shared — замечание ревью 2026-10-07
 
 По требованию пользователя DTO каждого слоя принадлежат своему Contract. Contract-проекты не ссылаются друг на друга; разрешён общий проект src/shared/DayType/DayType.csproj, содержащий только DayType и DayTypeExtensions, без зависимостей от приложения, endpoints и сервисов. Namespace сохранён GarageGroup.Internal.ProductionCalendar; AssemblyName — GarageGroup.Internal.ProductionCalendar.Shared.DayType. Solution содержит десять production-проектов.
 
 Устранены ссылки на ProductionCalendar.Contract из Storage.Contract и обоих endpoint Contract. В ProductionCalendar.Initialize.Contract добавлена собственная ProductionCalendarInitializeDay; FlatArray подключён напрямую пакетом версии 1.5.1. BuildCalendarIn создаёт сервисные overrides через Builder.OfLength/MoveToFlatArray и проверяет null до чтения полей. В Get handler удалена лишняя прямая ссылка на контракт календарного сервиса. Зависимости реализаций handlers от supplier-контрактов остаются необходимыми для вызова сервисов; их публичные endpoint-контракты теперь независимы.
+
+## Azure Functions и HTTP — инкремент 6 (2026-10-07)
+
+Program использует FunctionHost.CreateFunctionsWorkerBuilderStandard().Build().RunAsync(), как в образце; OutputType переключён на Exe. Application/Application.cs собирает StandardSocketsHttpHandler → logging → TokenCredentialStandard → PollyStandard → HttpApi → StorageOption → StorageApi. URI и фиксированное имя таблицы берутся из ProductionCalendar:Storage. App.ProductionCalendar.Day.Get.cs и App.ProductionCalendar.Initialize.cs собирают generic handler dependencies; функции Resolve через InstanceServices. Business DI-регистрации не добавлены.
+
+Assembly RefreshableTokenCredential с расписанием 0 */30 * * * * генерирует инфраструктурную RefreshAzureTokens. Timer extension сохранён именно для credential refresh; бизнес-таймеров календаря нет. Существующие Worker/GarageGroup packages используются без новых пакетов. host.json и appsettings.json содержат стандартный host и Info/ProductionCalendar:Storage; StorageApi:BaseAddress пустой до конфигурации среды, Timeout=01:00:00. local.settings.json исключён из Git.
+
+Каждая JSON-модель находится в отдельном файле Inernal.Json: InitializeJson, InitializeDayJson, DayJson, InitializedJson, ErrorJson. Входная Days — required nonnullable FlatArray без собственного конвертера; JSON null эквивалентен [], отсутствие поля запрещено; endpoint Days также required nonnullable со своей моделью. JSON strings Date/Type маппятся строго в DateOnly/DayType, Year — обязательное JSON-число, string-number не принимается. Пустая Days разрешена. Нет зависимости транспортных DTO от DTO сервисов.
+
+Чтение тела и создание HttpResponseData используют обычный async, как в образце; бизнес pipeline остаётся в handlers. JsonOptions закрепляет camelCase, строгие числа и строковый enum в ответе; input enum проверяется switch по точным именам, чтобы исключить нечувствительность стандартного enum converter к регистру. SerializeAsync пишет непосредственно в response.Body и сохраняет явно заданный HTTP status, Content-Type application/json; charset=utf-8. Unknown HTTP errors обобщены, исходная инфраструктурная диагностика остаётся в failure/HTTP logging. JsonException → 400, отмена не перехватывается.
+
+Build/publish и generated metadata проверены. Core Tools 4.8.0 запустил host, оба HTTP route зарегистрированы; ручные негативные вызовы вернули 400. Credential refresh был локально отключён для этих вызовов. Успешные GET/PUT, 404 и refresh со Storage пока не проверены. Повторный локальный запуск с URI эмулятора отклонён автоматической проверкой команд; среда Storage остаётся задачей этапа 7 (инфраструктура и CI/CD); бизнес-проверка выполняется на этапе 8. Тестовый код не создаётся.
+
+Ревью 2026-10-07: самописный GetRequiredValue удалён. ResolveStorageOption использует библиотечный IConfiguration.GetRequiredSection(key).Value.OrEmpty(); фиксированный TableName проверяет StorageApi; адрес/таймаут читает IHttpApi. GetRequiredValue для IConfiguration не доступен в подключённых библиотеках (проверено сборкой).
+
+### Ревью 2026-10-07 — конфигурация IHttpApi
+
+Проверена установленная GarageGroup.Infra.Http.Api 1.1.0: перегрузка UseHttpApi("StorageApi") доступна и компилируется; сборка содержит HttpApiOption/BaseAddress/Timeout и конфигурационное разрешение sectionName. Application использует эту перегрузку. Блок StorageApi содержит BaseAddress и Timeout=01:00:00. StorageOption больше не содержит ServiceUri; StorageApi формирует относительный ProductionCalendar(PartitionKey=...,RowKey=...) без начального /. Адрес больше не передаётся в сервис и не валидируется им.
+
+BaseAddress должен заканчиваться / для корректного разрешения относительного URL, особенно при наличии path prefix. Azure settings: StorageApi__BaseAddress и StorageApi__Timeout; TableName остаётся ProductionCalendar__Storage__TableName. Реальные HTTP-вызовы Storage с новым base address пока не проверены; интеграция остаётся на этапе 8. Новые пакеты не добавлены.
+
+Порядок после решения пользователя 2026-10-07: сначала инкремент 7 — инфраструктура/CI/CD и развёртывание Azure Test, затем инкремент 8 — ручная интеграционная проверка приложения в развёрнутой Test-среде. Тестовые проекты и автоматические тесты не добавляются. Текущие изменения разрешено закоммитить; следующий инкремент ожидает отдельной команды.

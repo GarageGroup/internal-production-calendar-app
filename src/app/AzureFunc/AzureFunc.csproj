@@ -9,7 +9,7 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <RootNamespace>GarageGroup.Internal.ProductionCalendar</RootNamespace>
     <AssemblyName>GarageGroup.Internal.ProductionCalendar.AzureFunc</AssemblyName>
-    <OutputType>Library</OutputType>
+    <OutputType>Exe</OutputType>
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
   </PropertyGroup>
 

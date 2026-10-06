@@ -1,6 +1,8 @@
 # План реализации Production Calendar
 
-Выполнять последовательно. Каждый этап заканчивается проверкой и обновлением статуса. План предназначен для дальнейших совместных итераций; текущий запрос ограничен этапом 0.
+Выполнять последовательно, по одному инкременту. Каждый этап заканчивается проверкой, обновлением статуса и остановкой для ревью без коммита. После одобрения пользователя или «продолжай» закоммитить завершённый инкремент и перейти к следующему.
+
+Для каждого инкремента актуализировать связанные Markdown-документы и вести [журнал](DEVELOPMENT_LOG.md): дата, выполненное, решения и их источник, проверки, ревью и коммит. Чекбокс выполнения означает готовность реализации к ревью, а не одобрение пользователем.
 
 ## Этап 0. Исследование, каркас и инструкции
 
@@ -11,16 +13,19 @@
 
 ## Этап 1. Контракты и бизнес-модель
 
-- [ ] `service/ProductionCalendar/Contract/DayType.cs`: четыре значения enum из спецификации.
-- [ ] Модель `ProductionCalendarDay`: Country, DateOnly Date, DayType, Comment; единое чистое правило IsWorkingDay.
-- [ ] `ProductionCalendar.Build/`: input построения Country/Year/JSON, output полного календаря, typed failure codes, supplier `IProductionCalendarBuildSupplier`.
-- [ ] `IProductionCalendarApi` объединяет supplier построения.
-- [ ] `Storage/Contract/ProductionCalendarDay.Get|Set`: inputs/outputs, supplier-интерфейсы, `IStorageApi`, `StorageFailureCode` (Invalid/NotFound/Unknown).
-- [ ] `endpoint/ProductionCalendarDay.Get/Contract`: GetIn/GetOut, failure codes, `IProductionCalendarDayGetHandler`.
-- [ ] `endpoint/ProductionCalendar.Initialize/Contract`: InitializeIn с Country/Year/JSON, InitializeOut с Country/Year/DaysCount, failure codes, `IProductionCalendarInitializeHandler`.
-- [ ] Возвращать `ValueTask<Result<..., Failure<...>>>`, принимать CancellationToken; исключить зависимости контрактов от HTTP/Storage реализации.
+- [x] `service/ProductionCalendar/Contract/DayType.cs`: четыре значения enum из спецификации.
+- [x] Модель `ProductionCalendarDay`: Country, DateOnly Date, DayType, Comment; единое чистое правило IsWorkingDay.
+- [x] Замечание ревью 2026-10-06: Comment объявлен nullable без инициализатора во всех четырёх моделях; правила required/nullable, OrEmpty, запрета null-forgiving и предпочтения is/is not закреплены в AGENTS.md.
+- [x] `ProductionCalendar.Build/`: input построения Country/Year/JSON, output полного календаря, typed failure codes, supplier `IProductionCalendarBuildSupplier`.
+- [x] `IProductionCalendarApi` объединяет supplier построения.
+- [x] `Storage/Contract/ProductionCalendarDay.Get|Set`: inputs/outputs, supplier-интерфейсы, `IStorageApi`, `StorageFailureCode` (Invalid/NotFound/Unknown).
+- [x] `endpoint/ProductionCalendarDay.Get/Contract`: GetIn/GetOut, failure codes, `IProductionCalendarDayGetHandler`.
+- [x] `endpoint/ProductionCalendar.Initialize/Contract`: InitializeIn с Country/Year/JSON, InitializeOut с Country/Year/DaysCount, failure codes, `IProductionCalendarInitializeHandler`.
+- [x] Возвращать `ValueTask<Result<..., Failure<...>>>`, принимать CancellationToken; исключить зависимости контрактов от HTTP/Storage реализации.
 
 Готовность: solution собирается; enum общий для всех слоёв; контракты покрывают оба действия и все обязательные поля. Перед кодом уточнить имена типов по единому стилю образца, затем закрепить в архитектуре.
+
+Проверка инкремента 1 (2026-10-06): restore и Release build всего решения прошли успешно, 0 предупреждений и 0 ошибок. Реализации операций и тесты поведения добавляются следующими этапами. Инкремент подготовлен для ревью, коммит не выполнен. Подробности и решения — в DEVELOPMENT_LOG.md.
 
 ## Этап 2. Чистое построение календаря
 

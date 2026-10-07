@@ -326,3 +326,29 @@
 
 Проверка текущего кода: последняя Release-сборка десяти проектов после финального исправления успешна, 0 ошибок/предупреждений; повтор не требуется, менялась только документация. Тесты не создавались. Подготовлен коммит инкремента 6 и обновлённого порядка этапов; после него работа останавливается до отдельной команды пользователя.
 Инкремент 6 и обновлённый порядок этапов закоммичены: 27dbcb8 — Implement Functions host and HTTP API; deploy Test before integration checks. Следующий инкремент не начат по прямому указанию пользователя.
+
+## 2026-10-07 — инкремент 7: инфраструктура и CI/CD
+
+**Требования пользователя:** приступить к CI/CD; System Assigned MI; использовать существующее хранилище; APIM подключить без endpoints. В ходе работы пользователь уточнил, что речь об общем хранилище версионных ZIP, а runtime deployment container остаётся собственным как в образце. Дополнительная команда пользователя: самостоятельно ничего не запускать в Azure/CI/CD, только написать scripts, names variables как в примере. Развёртывание исключено из выполняемого агентом объёма; код готовится для запуска пользователем.
+
+**Выполнено:** main.bicep с ProductionCalendar, FC1/Functions .NET 10, StorageV2 и function-packages, System Assigned MI, Insights/Log Analytics; storage-access и existing APIM template; четыре scripts install/settings/APIM/artifact; пять workflows build/install/publish/deploy/delete; LF через .gitattributes; удалены заполненные .gitkeep. Документация инфраструктуры/workflows переписана под конкретные файлы/variables/RBAC/OIDC/запуск; обновлены AGENTS, план, архитектура, спецификация, обзор. README пользователя не изменён.
+
+**Исследовано:** Bicep и module/scripts/workflows проекта internal-exchange-rates-app; официальные Functions Action и Flex deployment storage. Azure CLI перед уточнением пользователя выполнял только read-only account/storage/APIM inventory; ресурсы не создавались и эти обнаруженные имена/ID не перенесены в шаблоны. После уточнения Azure service calls/deployments/workflows не выполнялись; проверки Bicep — локальная компиляция.
+
+**Самостоятельные решения:** выделен общий artifact.sh с безопасными env/quotes и проверкой version/name; immutable upload overwrite=false, повтор deployment через deploy workflow. Publish → reusable deploy Test, ручной deploy → тот же workflow; remote-build=false, один ZIP для Test/Prod. Settings применяются общим script перед deploy и читают Table endpoint из primaryEndpoints. Install/deploy concurrency по environment; release publish/delete по version. APIM job допускает skipped Function deployment. Delete использует default branch checkout, чтобы удалённый tag не мешал cleanup. Deployment principal/OIDC отдельно от MI приложения; артефактный Storage key используется только CI как в образце.
+
+**Проверки:** первоначальная Bicep draft ссылка на удалённый deploymentContainer обнаружена компилятором и исправлена; после уточнения пользователя итоговый template возвращён к собственному function-packages образца. Итоговые main/apim compile с Bicep 0.43.8 успешны. Bash -n четырёх scripts успешен. actionlint 1.7.12 (утилита загружена во временную папку, без новой зависимости проекта) проверил пять workflows без ошибок; ShellCheck/Pyflakes отключены, Bash syntax проверен отдельно. dotnet publish Release linux-x64 --self-contained false с restore/build успешен, без warnings/errors. Тесты не писались и не запускались.
+
+**Ограничения и статус:** GitHub variables/secret/OIDC и Azure runtime этих workflows не проверены реальным запуском по требованию пользователя. Ресурсы/релизы/workflows не создавались и не запускались. Код инкремента 7 готов к ревью без коммита; пользователь запускает установку/deployment Test, после чего этап 8 — ручная бизнес-проверка. CI/CD файлы пока не отправлены на remote.
+## 2026-10-07 — ревью инкремента 7: App Registrations и shell-скрипт администратора
+
+По запросу пользователя изучен раздел App Registrations/Shell-скрипт выдачи прав .infra/README.md проекта-образца. В наш .infra/README.md добавлен именно fenced shell-блок для заполнения и отдельного запуска администратором в Test/Prod; отдельный исполняемый script не добавлялся и команды доступа не выполнялись.
+
+Описаны две Azure deployment App Registration (по одной для среды), client/tenant/subscription variables, Service Principal и GitHub OIDC без client secrets. Function работает через System Assigned MI, отдельная App Registration ей не нужна; Dataverse/Graph application permissions/admin consent не требуются.
+
+Самостоятельно уточнено: администратор заранее создаёт вычисляемую Resource Group в North Europe и регистрирует providers, чтобы deployment principal не требовался Contributor всей subscription; затем выдаёт Contributor и Role Based Access Control Administrator на группу. Для текущей APIM-проверки только Reader; будущий API Management Service Contributor оставлен закомментированной командой до реализации методов. Используется Service Principal object ID для RBAC, а client ID сохраняется для GitHub. OIDC credential обновляется при повторном запуске. Права MI на Storage выдаёт Bicep, artifact lifecycle использует существующий repository secret по образцу.
+
+Shell-блок извлечён во временный файл и проверен Git Bash bash -n — успешно. Azure-команды, установка прав/OIDC и deployment не выполнялись. Изменения остаются частью инкремента 7 без коммита до ревью.
+## 2026-10-07 — одобрение инкремента 7
+
+Пользователь сообщил «делай коммит»: инфраструктура, CI/CD и shell-блок администратора одобрены. Выполняется коммит текущих изменений; следующий этап не начинается. Azure/CI/CD команды не запускались.

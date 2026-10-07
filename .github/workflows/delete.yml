@@ -1,0 +1,32 @@
+name: Delete Artifact
+on:
+  release:
+    types: [deleted]
+permissions:
+  contents: write
+concurrency:
+  group: production-calendar-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - name: Delete release artifact
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+          ARTIFACT_NAME: ${{ vars.AZURE_ARTIFACT_NAME }}
+          ARTIFACT_CONTAINER: ${{ vars.AZURE_ARTIFACT_CONTAINER_NAME }}
+          ARTIFACT_ACCOUNT: ${{ vars.AZURE_ARTIFACT_ACCOUNT_NAME }}
+          ARTIFACT_ACCOUNT_KEY: ${{ secrets.AZURE_ACCOUNT_KEY_ARTIFACT }}
+        run: bash .infra/scripts/artifact.sh delete
+      - name: Delete release tag
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          git check-ref-format "refs/tags/$TAG_NAME"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+            git push origin ":refs/tags/$TAG_NAME"
+          fi

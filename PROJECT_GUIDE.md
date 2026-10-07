@@ -68,7 +68,7 @@ dotnet build Internal.ProductionCalendar.slnx --no-restore -c Release
 
 Тестовых проектов и зависимостей нет. Верификация проекта — сборка и применимые ручные проверки; написание тестов исключено пользователем. История ранее выполненных проверок сохранена в DEVELOPMENT_LOG.md.
 
-Следующий инкремент 7 — инфраструктура, CI/CD и развёртывание Test; затем инкремент 8 — ручная интеграционная проверка в этой среде. По команде пользователя от 2026-10-07 текущие изменения коммитятся, следующий инкремент пока не начинается.
+Инкремент 7 реализован и ожидает ревью без коммита: Bicep, четыре scripts, пять GitHub workflows, System Assigned MI и APIM placeholder. По уточнению пользователя подготовлены только файлы; запуск Azure/CI/CD выполняет пользователь. После deployment Test — инкремент 8, ручная интеграционная проверка.
 
 Замечания ревью от 2026-10-06 учтены: Comment nullable без инициализатора; модель построенного календаря сохраняет отсутствие комментария как null, будущая запись Storage применяет OrEmpty. Null-forgiving не используется; сравнения следуют правилам is/is not.
 
@@ -92,3 +92,8 @@ CancellationToken передаётся в AsyncPipeline и асинхронны�
 Country/year/days обязательны. Days=[] и Days=null допустимы и создают базовый календарь; отсутствие поля запрещено. Date/type каждого элемента обязательны, type — точное имя одного из четырёх DayType, числа запрещены. JSON-модели находятся по отдельным файлам Inernal.Json и маппятся в endpoint-модели. Days в транспортной модели — required FlatArray без nullable. Отсутствие отклоняет required; штатный конвертер FlatArray преобразует JSON null в пустую коллекцию, как согласовано с пользователем.
 
 Обе функции AuthorizationLevel.Function. Локальный Core Tools обычно не требует function key; в Azure требуется ключ. Ошибки имеют форму {"error":"..."}; сообщения Unknown обобщены, подробности Storage не публикуются в HTTP.
+## CI/CD — инкремент 7
+
+Добавлены .infra/main.bicep, modules/storage-access.bicep, apim/main.bicep и scripts/install-azure-resources.sh, set-function-app-settings.sh, prepare-apim.sh, artifact.sh. Пять workflows: build/install/publish/deploy/delete. Подробные переменные, права и порядок запусков — в [.infra/README.md](.infra/README.md) и [workflows/README.md](.github/workflows/README.md).
+
+Существующее общее хранилище используется для версионных ZIP. Runtime function-packages создаётся отдельно в Storage Account Test/Prod как в образце. APIM только проверяется, методы не публикуются. Имена переменных сохранены из образца. Реальные запуск/настройки CI/CD и Azure deployment оставлены пользователю; файлы готовы к проверке без коммита. Локально пройдены Bicep compile, Bash syntax, actionlint и linux-x64 publish.

@@ -117,14 +117,17 @@
 
 ## Этап 7. Инфраструктура и CI/CD
 
-- [ ] Выполнить подробный план `.infra/README.md` и `.github/workflows/README.md`.
-- [ ] Адаптировать Bicep и scripts, создать одну таблицу ProductionCalendar; сохранить Flex Consumption, Managed Identity, RBAC, Test/Prod, OIDC и ZIP lifecycle.
-- [ ] Создать build/publish/deploy/install/delete workflows по образцу; календарные settings вместо курсов/таймеров, без ненужной Dataverse-конфигурации.
-- [ ] Проверить Bicep build, `bash -n`, restore/build/publish и схему workflows.
-- [ ] Настроить предоставленные параметры GitHub/Azure, установить Test и развернуть опубликованный артефакт через CI/CD. Проверку бизнес-поведения выполнить следующим инкрементом 8 в этой Test-среде.
-- [ ] Проверить развёртывание выбранного существующего ZIP в Prod и сценарий возврата на предыдущую версию по согласованным параметрам среды.
+- [x] Реализовать .infra/main.bicep, modules/storage-access.bicep и apim/main.bicep по образцу.
+- [x] Создать шаблон одной ProductionCalendar, Flex Consumption, System Assigned MI, RBAC, host/deployment Storage, Application Insights и Log Analytics.
+- [x] Использовать существующее общее хранилище версионных ZIP; собственный function-packages каждой среды создавать как в образце (уточнение пользователя 2026-10-07).
+- [x] Добавить install/settings/APIM/artifact скрипты с именами variables из образца.
+- [x] Реализовать build/publish/deploy/install/delete workflows без Dataverse и тестовых стадий; publish → Test, reusable deploy → Test/Prod.
+- [x] Подключить проверку существующего APIM без API/backend/policies/operations; исправить APIM-only сценарий skip_deploy.
+- [x] Bicep compile, bash -n, actionlint и Release linux-x64 publish; обновить документацию OIDC/RBAC/variables и порядок ручного запуска.
+- [ ] Пользователь настраивает GitHub variables/secret, environments и OIDC, запускает install/release/deploy для Test. По прямому указанию не выполнять эти действия самостоятельно.
+- [ ] После Test-проверки пользователь запускает подготовленный путь продвижения того же ZIP в Prod и возврата версии.
 
-Готовность: одинаковый артефакт продвигается между средами; credentials приложения — Managed Identity; CI проверяет сборку и инфраструктуру без тестовых стадий; инструкция развёртывания воспроизводима.
+Проверка 2026-10-07: Bicep CLI 0.43.8 — main/apim успешны; Git Bash — синтаксис четырёх scripts успешен; actionlint 1.7.12 — пять workflows без ошибок; dotnet publish Release linux-x64 --self-contained false успешен с restore/build. Реальные GitHub runs/Azure deployments не выполнялись. Реализация инкремента 7 готова к ревью, без коммита; запуск среды оставлен пользователю по уточнённому объёму задачи. Ручная бизнес-проверка после deployment — этап 8.
 
 ## Этап 8. Интеграционная проверка
 
@@ -153,3 +156,5 @@
 Ревью 2026-10-07: транспортный Days — required FlatArray без nullable. По последующему согласованию с пользователем собственный конвертер удалён: required проверяет наличие, null и [] допустимы. Release build успешен, 0 ошибок/предупреждений; без коммита.
 
 Решение пользователя 2026-10-07: этапы переставлены — инкремент 7 инфраструктура/CI/CD и развёртывание Test; инкремент 8 ручная интеграционная проверка там же. Текущие изменения одобрены к коммиту. Следующий шаг не начинать до отдельной команды пользователя.
+
+Ревью инкремента 7 (2026-10-07): в .infra/README.md добавлены две deployment App Registration и shell-блок администратора (OIDC, создание RG/providers, Contributor/RBAC Administrator, APIM Reader). Bash syntax успешен; команды не выполнялись; без коммита.

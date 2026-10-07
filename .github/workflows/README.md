@@ -1,30 +1,36 @@
-# План GitHub Actions
+# GitHub Actions Production Calendar
 
-Workflows будут добавлены на этапе 8, после работающего приложения. Сейчас здесь нет активного CI/CD.
+Инкремент 7: пять workflows реализованы и локально проверены. Реальные workflows и Azure deployment не запускались по указанию пользователя. Variables/secret и OIDC описаны в [.infra/README.md](../../.infra/README.md).
 
-| Workflow | Триггер по образцу | Планируемые шаги |
+| Workflow | Триггер | Действия |
 | --- | --- | --- |
-| build.yml | Push во все ветки, pull request | Checkout, .NET 10, Bicep compile, bash -n, restore/build Release |
-| publish.yml | Release created | Restore/build/publish linux-x64, Info metadata, ZIP, Blob upload, deploy в Test, app settings |
-| deploy.yml | workflow_dispatch: environment/version | Скачать существующий ZIP, Azure OIDC login, Flex deploy, settings, отдельная стадия APIM при необходимости |
-| install.yml | workflow_dispatch: environment | OIDC login, Incremental Bicep deployment, Managed Identity RBAC, проверка APIM |
-| delete.yml | Release deleted | Удалить соответствующий ZIP из artifact storage и Git tag с нужными contents permissions |
+| build.yml | Push во все ветки, pull request | .NET 10 restore/build, Bicep compile, Bash syntax |
+| install.yml | workflow_dispatch: Test/Prod | Azure OIDC login, проверка APIM, Incremental Bicep deployment, MI/RBAC |
+| publish.yml | release created | Release linux-x64 publish, Info metadata, ZIP upload в существующее хранилище, deploy Test |
+| deploy.yml | workflow_dispatch или workflow_call | Существующий ZIP, общие settings, Flex OneDeploy, проверка APIM |
+| delete.yml | release deleted | Удаление ZIP этого приложения и соответствующего Git tag |
 
-## Требования адаптации
+Tests/dotnet test отсутствуют по требованию пользователя. Dataverse, валютные пары и бизнес-таймеры не переносятся из образца. Файлы .sh/.yml/.bicep закреплены с LF в .gitattributes для Linux runner.
 
-1. Solution — `Internal.ProductionCalendar.slnx`, publish project — `src/app/AzureFunc/AzureFunc.csproj`.
-2. Environments — `Test`/`Prod`, OIDC `id-token: write` только нужным workflows, минимальные contents permissions.
-3. Deployment сохраняет `sku: flexconsumption`, `remote-build: false` по образцу; проверить поддержку при реализации.
-4. Перед запуском валидировать release version и artifact name. Не вставлять внешние значения в исполняемый shell-код: передавать через env и корректно цитировать.
-5. Ошибки build/publish блокируют публикацию. По решению пользователя от 2026-10-07 тесты не пишутся и dotnet test в workflows не включается.
-6. Settings должны быть идентичны в publish-to-Test и ручном deploy; вызывать общий script.
-7. Убрать Dataverse jobs и settings, курсовые schedules и currency pairs.
-8. В deploy образца APIM job зависит от application job и может быть skipped при skip_deploy. При адаптации явно обработать сценарий самостоятельной APIM-стадии.
-9. Не копировать placeholder APIM как будто он публикует методы. Разделять проверку существующего сервиса и создание API operations.
-10. Проверить release deletion/tag push: правильные credentials checkout и contents: write; удаление тега не должно удалять данные приложения.
+## Публикация и deploy
 
-Готовность: workflows проверены, ссылки на solution/scripts существуют, в среде Test выполнена ручная проверка; перед реальным deploy предоставлены параметры среды из `.infra/README.md`.
+Solution Internal.ProductionCalendar.slnx, publish project src/app/AzureFunc/AzureFunc.csproj, runtime linux-x64, framework-dependent .NET 10. Имя ZIP: AZURE_ARTIFACT_NAME-VERSION.zip. Version и artifact prefix проверяются; значения GitHub передаются в env, не вставляются в shell-код. В ZIP Info.ApiVersion/BuildDateTime; Azure settings применяет один общий скрипт.
 
-Актуализация 2026-10-07: AzureFunc теперь Exe, Release publish формирует metadata двух HTTP endpoints и инфраструктурного RefreshAzureTokens. Сохранять host Storage/Timer extension для credential refresh, без бизнес-таймеров. Workflows пока не реализованы.
+publish.yml вызывает deploy.yml как reusable workflow с environment=Test. Publish job использует repository artifact variables/secret, Azure login нужен только environment job. Один и тот же deploy выполняется при ручном продвижении в Prod; remote-build=false, sku=flexconsumption. Настройки применяются перед загрузкой пакета. Environment concurrency общая для install/deploy, чтобы операции одной среды не пересекались.
 
-Решение пользователя 2026-10-07: инфраструктура/CI/CD и развёртывание Test выполняются инкрементом 7, до интеграционной проверки. Ручная проверка обеих операций и идемпотентности — отдельный инкремент 8 в этой Test-среде. Следующий инкремент пока не начинать.
+Upload overwrite=false сохраняет неизменность существующей версии. При уже загруженном ZIP повторять deploy, а для нового кода выпускать новый release. Удаление и публикация одной version сериализованы общей release concurrency. Delete checkout использует default branch, чтобы удалённый tag не мешал получить cleanup script.
+
+## Ручной deploy
+
+Входы:
+
+- environment: Test или Prod.
+- version: существующая версия, например v1.0.0.
+- skip_deploy: пропустить Function App deployment.
+- skip_apim: пропустить проверку APIM.
+
+APIM job выполняется также при skip_deploy=true (исправлен сценарий skipped dependency из образца). Без skip_apim обязательны APIM_RESOURCE_GROUP/APIM_SERVICE_NAME. Он только проверяет существующий сервис: endpoints/backend/policies пока не создаются.
+
+## Проверки и статус
+
+actionlint 1.7.12 проверил пять workflows без ошибок. Bicep compile, bash -n, Release linux-x64 publish успешны. Реальные GitHub Environments, OIDC login, upload/download/delete и Azure deploy этими workflows не выполнялись. Их запуск оставлен пользователю; после deployment в Test будет инкремент 8 с ручной проверкой сервиса.

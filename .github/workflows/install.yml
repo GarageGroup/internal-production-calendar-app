@@ -1,0 +1,42 @@
+name: Install Infrastructure
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        default: Test
+        options: [Test, Prod]
+permissions:
+  id-token: write
+  contents: read
+concurrency:
+  group: production-calendar-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Log in to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.DEPLOY_CLIENT_ID }}
+          tenant-id: ${{ vars.DEPLOY_TENANT_ID }}
+          subscription-id: ${{ vars.DEPLOY_SUBSCRIPTION_ID }}
+      - name: Install infrastructure
+        env:
+          AZURE_NAME_ROOT: ${{ vars.AZURE_NAME_ROOT }}
+          AZURE_NAME_POSTFIX: ${{ vars.AZURE_NAME_POSTFIX }}
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.STORAGE_ACCOUNT_NAME }}
+          APIM_RESOURCE_GROUP: ${{ vars.APIM_RESOURCE_GROUP }}
+          APIM_SERVICE_NAME: ${{ vars.APIM_SERVICE_NAME }}
+          FUNC_INSTANCE_MEMORY: ${{ vars.FUNC_INSTANCE_MEMORY }}
+          FUNC_MAX_INSTANCE_COUNT: ${{ vars.FUNC_MAX_INSTANCE_COUNT }}
+        run: bash .infra/scripts/install-azure-resources.sh
+      - name: Azure Logout
+        if: ${{ always() }}
+        run: az logout
+

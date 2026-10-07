@@ -1,0 +1,105 @@
+name: Deploy Application
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        default: Test
+        options: [Test, Prod]
+      version:
+        description: Existing artifact version, for example v1.2.3
+        required: true
+        type: string
+      skip_deploy:
+        description: Skip Function App deployment
+        type: boolean
+        default: false
+      skip_apim:
+        description: Skip APIM verification
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      skip_deploy:
+        type: boolean
+        default: false
+      skip_apim:
+        type: boolean
+        default: false
+    secrets:
+      AZURE_ACCOUNT_KEY_ARTIFACT:
+        required: true
+permissions:
+  id-token: write
+  contents: read
+concurrency:
+  group: production-calendar-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  deploy-application:
+    if: ${{ !inputs.skip_deploy }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download existing artifact
+        id: artifact
+        env:
+          VERSION: ${{ inputs.version }}
+          ARTIFACT_NAME: ${{ vars.AZURE_ARTIFACT_NAME }}
+          ARTIFACT_CONTAINER: ${{ vars.AZURE_ARTIFACT_CONTAINER_NAME }}
+          ARTIFACT_ACCOUNT: ${{ vars.AZURE_ARTIFACT_ACCOUNT_NAME }}
+          ARTIFACT_ACCOUNT_KEY: ${{ secrets.AZURE_ACCOUNT_KEY_ARTIFACT }}
+        run: bash .infra/scripts/artifact.sh download
+      - name: Log in to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.DEPLOY_CLIENT_ID }}
+          tenant-id: ${{ vars.DEPLOY_TENANT_ID }}
+          subscription-id: ${{ vars.DEPLOY_SUBSCRIPTION_ID }}
+      - name: Set Function App settings
+        env:
+          AZURE_RESOURCE_GROUP_NAME: rg-${{ vars.AZURE_NAME_ROOT }}-${{ vars.AZURE_NAME_POSTFIX }}
+          AZURE_FUNCTION_NAME: func-${{ vars.AZURE_NAME_ROOT }}-${{ vars.AZURE_NAME_POSTFIX }}
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.STORAGE_ACCOUNT_NAME }}
+        run: bash .infra/scripts/set-function-app-settings.sh
+      - name: Deploy existing ZIP
+        uses: Azure/functions-action@v1
+        with:
+          app-name: func-${{ vars.AZURE_NAME_ROOT }}-${{ vars.AZURE_NAME_POSTFIX }}
+          package: ${{ steps.artifact.outputs.package_path }}
+          sku: flexconsumption
+          remote-build: false
+      - name: Azure Logout
+        if: ${{ always() }}
+        run: az logout
+  verify-apim:
+    if: ${{ always() && !cancelled() && !inputs.skip_apim && (needs.deploy-application.result == 'success' || needs.deploy-application.result == 'skipped') }}
+    needs: deploy-application
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Log in to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.DEPLOY_CLIENT_ID }}
+          tenant-id: ${{ vars.DEPLOY_TENANT_ID }}
+          subscription-id: ${{ vars.DEPLOY_SUBSCRIPTION_ID }}
+      - name: Verify existing APIM
+        env:
+          APIM_RESOURCE_GROUP: ${{ vars.APIM_RESOURCE_GROUP }}
+          APIM_SERVICE_NAME: ${{ vars.APIM_SERVICE_NAME }}
+        run: bash .infra/scripts/prepare-apim.sh
+      - name: Azure Logout
+        if: ${{ always() }}
+        run: az logout
+

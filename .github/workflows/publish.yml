@@ -1,0 +1,46 @@
+name: Publish Release
+on:
+  release:
+    types: [created]
+permissions:
+  id-token: write
+  contents: read
+concurrency:
+  group: production-calendar-release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: '10.0.x' }
+      - run: dotnet restore Internal.ProductionCalendar.slnx
+      - run: dotnet build Internal.ProductionCalendar.slnx --no-restore -c Release
+      - run: dotnet publish src/app/AzureFunc/AzureFunc.csproj -c Release -r linux-x64 --self-contained false -o publish
+      - name: Set release metadata
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          [[ "$VERSION" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$ ]] || { echo 'Invalid release version' >&2; exit 1; }
+          jq --arg version "$VERSION" --arg date "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            '.Info.ApiVersion = $version | .Info.BuildDateTime = $date' \
+            publish/appsettings.json > publish/appsettings.tmp.json
+          mv publish/appsettings.tmp.json publish/appsettings.json
+      - name: Upload immutable artifact
+        env:
+          VERSION: ${{ github.event.release.tag_name }}
+          ARTIFACT_NAME: ${{ vars.AZURE_ARTIFACT_NAME }}
+          ARTIFACT_CONTAINER: ${{ vars.AZURE_ARTIFACT_CONTAINER_NAME }}
+          ARTIFACT_ACCOUNT: ${{ vars.AZURE_ARTIFACT_ACCOUNT_NAME }}
+          ARTIFACT_ACCOUNT_KEY: ${{ secrets.AZURE_ACCOUNT_KEY_ARTIFACT }}
+        run: bash .infra/scripts/artifact.sh upload
+  deploy-to-test:
+    needs: publish
+    uses: ./.github/workflows/deploy.yml
+    with:
+      environment: Test
+      version: ${{ github.event.release.tag_name }}
+    secrets:
+      AZURE_ACCOUNT_KEY_ARTIFACT: ${{ secrets.AZURE_ACCOUNT_KEY_ARTIFACT }}
+

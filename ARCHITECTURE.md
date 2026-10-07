@@ -158,3 +158,18 @@ Build/publish и generated metadata проверены. Core Tools 4.8.0 зап�
 BaseAddress должен заканчиваться / для корректного разрешения относительного URL, особенно при наличии path prefix. Azure settings: StorageApi__BaseAddress и StorageApi__Timeout; TableName остаётся ProductionCalendar__Storage__TableName. Реальные HTTP-вызовы Storage с новым base address пока не проверены; интеграция остаётся на этапе 8. Новые пакеты не добавлены.
 
 Порядок после решения пользователя 2026-10-07: сначала инкремент 7 — инфраструктура/CI/CD и развёртывание Azure Test, затем инкремент 8 — ручная интеграционная проверка приложения в развёрнутой Test-среде. Тестовые проекты и автоматические тесты не добавляются. Текущие изменения разрешено закоммитить; следующий инкремент ожидает отдельной команды.
+
+## Инфраструктура и CI/CD — инкремент 7 (2026-10-07)
+
+Реализованы Bicep/templates/scripts/workflows по образцу. Linux Flex Consumption FC1, dotnet-isolated 10.0, North Europe, StorageV2 Standard_LRS, одна ProductionCalendar, Application Insights/Log Analytics и System Assigned MI. На Storage приложения назначены Blob Data Owner и Table Data Contributor как в storage-access образца. Нет Dataverse или бизнес-таймеров.
+
+Пользователь уточнил: повторно используется общее хранилище версионных ZIP, а не общий runtime deployment container. Runtime function-packages создаётся отдельно в Storage Account каждой среды, как в образце. APIM_RESOURCE_GROUP/APIM_SERVICE_NAME подключают проверку существующего APIM без API/backend/policies/operations; APIM template лишь объявляет existing reference. Публикация endpoints в APIM отложена.
+
+Имена repository/environment variables совпадают с образцом. .gitattributes закрепляет LF для shell/YAML/Bicep. Artifact script валидирует version/name, использует существующий Blob container и ключ только для CI, передаваемый secret. Приложение/host/deployment используют System Assigned MI. Upload overwrite=false защищает существующую версию; повторный deploy скачивает прежний ZIP. Settings едины через общий script, base URI читается из primaryEndpoints.table.
+
+publish вызывает deploy как reusable workflow; ручной deploy использует тот же путь и не пересобирает ZIP. Install/deploy сериализуются concurrency по environment; publish/delete — по version. APIM job выполняется при skip_deploy, если deploy был success/skipped и workflow не отменён. Release delete удаляет только именованный artifact и tag приложения, без удаления данных или Azure-ресурсов.
+
+Bicep compile, bash -n, actionlint и Release linux-x64 publish успешны. По прямому указанию пользователя подготовлены только файлы: GitHub configuration/runs и Azure deployments не выполнялись. Runtime OIDC/RBAC/OneDeploy будут проверены при запуске пользователем, бизнес-поведение — на этапе 8.
+
+Основа проверена по [Functions Action](https://github.com/Azure/functions-action) и [Flex deployment storage](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-how-to#configure-deployment-settings). Проверка existing resource сама по себе не публикует API в APIM.
+Ревью 2026-10-07: подготовка доступа описана shell-блоком в .infra/README.md по образцу. Для каждой среды отдельная Azure deployment App Registration/OIDC, без client secret и Graph permissions. Администратор заранее создаёт RG, principal получает Contributor и RBAC Administrator только на неё; APIM Reader для placeholder. Права System Assigned MI на Storage назначаются Bicep.

@@ -354,3 +354,47 @@ Shell-блок извлечён во временный файл и провер
 Пользователь сообщил «делай коммит»: инфраструктура, CI/CD и shell-блок администратора одобрены. Выполняется коммит текущих изменений; следующий этап не начинается. Azure/CI/CD команды не запускались.
 
 Коммит инкремента 7: 556f33d — Implement infrastructure and CI/CD with administrator access guide. Следующий этап не начат; реальные deployment/workflow запускает пользователь.
+
+## 2026-10-07 — инкремент 8: ручная проверка Azure Test
+
+Источник: пользователь сообщил об успешном deployment и передал адрес Function App, ключ и JSON RU/2027, разрешив проверку сервиса. Deployment/workflows агент не запускал. Ключ передавался только заголовком x-functions-key; в файлы проекта и документацию не записывался.
+
+Выполнено:
+
+- POST RU/2027 вернул 200 и daysCount=365; прочитаны все 24 overrides: даты, типы, кириллические комментарии и IsWorkingDay совпали с JSON. Базовые рабочий день/выходной корректны; country=ru нормализуется в RU.
+- Повторный POST того же JSON вернул 200/365. Отдельный ZZ/2028 вернул 200/366; проверены рабочая суббота WorkingDay и високосная дата Holiday, затем замена на ShortenedDay.
+- days:[] и days:null восстановили базовые типы и очистили прежние комментарии. После отрицательных запросов повторное чтение подтвердило сохранение ожидаемых данных.
+- Изоляция: RU/2028 и ZZ/2027 вернули 404, тогда как RU/2027 и ZZ/2028 читаются независимо.
+- 400: отсутствие days, year=0, неверная страна, null-элемент, дата вне года, дублирующаяся дата, числовой/неверного регистра type, несуществующая дата. GET несуществующей календарной даты — 400; без Function key — 401.
+
+Решение исполнителя: HTTP 404 не должен возвращать Azure Storage error body, request ID и другую внутреннюю диагностику. В Function.Get локально добавлено сообщение Production calendar day was not found.; Invalid сохраняет сообщение валидации, Unknown — обобщённое сообщение. Контракты и внутренний Failure не менялись. Исправление ещё не развёрнуто и требует повторного GET после пользовательского deployment.
+
+Ограничения: прямое чтение таблицы через локальный Azure CLI недоступно в текущем subscription/контексте доступа; права не менялись. Физическое число entity и представление Date/DayType в Storage Browser не подтверждены. daysCount — результат API, не прямой подсчёт строк. Refresh токена, сбой Storage и конкурирующая инициализация отдельно не проверялись. JSON проверялся как входной контракт, без оценки официальности праздничных дат.
+
+Итоговые данные Test: RU/2027 содержит исходный JSON пользователя; дополнительная partition ZZ/2028 содержит базовый календарь без overrides. Тестовые проекты/скрипты/harness не создавались. Release build — 0 ошибок и предупреждений; Release linux-x64 publish успешен с restore. План, спецификация, архитектура и обзор актуализированы. Коммит не выполнялся; ожидается ревью.
+## 2026-10-19 — инкремент 9: API и операции в APIM
+
+Источник: пользователь запросил отдельный API и методы в APIM, шаг CI/CD и доступ к Function через Function key. Запрос не содержит разрешения на commit/push/deploy; прежние изменения инкремента 8 сохранены.
+
+Выполнено: .infra/apim/main.bicep создаёт отдельный API каждой среды, GET /{country}/{date}, POST /initialize, backend, secret Named Value и API policy. prepare-apim.sh разделён на verify/deploy, install по-прежнему выполняет verify. Deploy workflow заменяет verify-apim на configure-apim после успешной публикации Function и поддерживает APIM-only при skip_deploy=true. При сбое Function job APIM пропускается. Ограниченное ожидание host key — до 12 попыток по 10 секунд, без вывода значения.
+
+Самостоятельные решения: ID/path production-calendar-test/prod для изоляции на общем APIM; frontend subscriptionRequired=true, без автоматического создания подписок/продуктов; backend default host key (не master) считывается ARM/Bicep и сохраняется secret Named Value. Policy override x-functions-key, удаление клиентских code и APIM subscription credentials, forward-request timeout=240 без retry POST. Backend URL — реальный defaultHostName. Новые GitHub variables/secrets не нужны; после ротации ключа повторяется APIM-only deployment. Поддерживаются разные RG в одной subscription; cross-subscription APIM этим скриптом не поддерживается.
+
+RBAC: admin shell-блок теперь назначает API Management Service Contributor на RG APIM, потому что group deployment требует Microsoft.Resources/deployments/* именно в RG. Старый Reader на сервисе не достаточен. Новых App Registrations или runtime identities не нужно. Обновлены .infra/README.md, workflows/README.md, локальные инструкции, план, архитектура, спецификация, обзор и координационные файлы Production Calendar. Корневой README исходного репозитория не менялся.
+
+Проверки: Bicep main/APIM compile успешны; actionlint 1.7.12 проверил все пять workflows (без ShellCheck/Pyflakes); Git Bash bash -n всех четырёх scripts и извлечённого admin shell-блока успешен. Проверка diff без ошибок пробелов. C# в этой задаче не менялся, build/publish не повторялись. Тесты/harness не создавались. Azure, GitHub runs, RBAC и реальные ключи не опрашивались/не менялись; настройка gateway пока не подтверждена живым запросом. Следующий шаг — ревью, обновление прав и deployment пользователем, затем разрешённая ручная проверка. Коммит не выполнен.
+## 2026-10-19 — замечание к инкременту 9: update-swagger и новый Product
+
+Пользователь указал на шаг update-swagger в C:/Users/Egor/Desktop/Работа/TimesheetBot/internal-timesheet-service-app и попросил аналогичный шаг. Изучены .infra/scripts/update-swagger.sh, APIM Bicep и deploy/publish workflows образца: он импортирует runtime OpenAPI через az apim api import. На уточнение о Product пользователь ответил «Я думаю нужен новый Product».
+
+Изменения: подготовлена OpenAPI 3.0.3 в src/app/AzureFunc/Swagger/swagger.json с двумя стабильными operationId, параметрами, схемами, enum, nullability, ответами и примерами. Файл embedded resource, защищённый Function endpoint GET /api/swagger/swagger.json отдаёт документ опубликованной версии. Business API этот endpoint не экспонирует. Схема поддерживается явно при изменении контракта; автоматический генератор и новые пакеты не вводились.
+
+Добавлены update-swagger.sh и отдельный job update-swagger после configure-apim; input update_swagger=true для workflow_dispatch/workflow_call. Publish-to-Test наследует default. При skip_deploy возможен APIM-only импорт текущей Function; skip_apim/ошибка configure-apim пропускают job. Скрипт читает host key через CLI, маскирует его в GitHub, скачивает документ по HTTPS в temp с ключом в заголовке, валидирует формат, импортирует OpenApiJson с backend URL/HTTPS/subscriptionRequired=true и удаляет temp. Новых variables/secrets нет. Первое применение требует нового ZIP со Swagger endpoint, старый релиз его не содержит.
+
+Самостоятельное решение: импортировать напрямую из Function вместо создания общего Swagger API как в Timesheet; сохраняется runtime источник спецификации и текущая Function-key авторизация. Bicep operations удалены во избежание двух источников контрактов. По выбору пользователя добавлены отдельные Products production-calendar-test/prod, published, API links и developers group. approvalRequired=true выбран исполнителем для одобрения заявок администратором, frontend подписки остаются обязательными. Подписки/ключи и сайт Developer Portal не создаются. Это заменяет первоначальное решение без Product и ручные operations Bicep.
+
+Проверки: swagger-cli validate 4.0.4 — документ валиден; Release build — 0 ошибок/предупреждений; linux-x64 publish успешен, metadata содержит GetProductionCalendarSwagger с route swagger/swagger.json. Bicep compile, actionlint всех workflows и bash -n всех пяти scripts успешны; параметры import сверены с локальным az apim api import --help. В CI добавлена проверка JSON. Тесты и harness не создавались. Реальные Azure/API/ключи не опрашивались, CI/CD/deployment/commit не запускались; прежняя правка 404 и результаты инкремента 8 сохранены. Следующий шаг — ревью, пользовательский release/deployment, затем разрешённая проверка gateway и Developer Portal.
+
+## 2026-10-19 — одобрение и коммит APIM/OpenAPI
+
+Пользователь сообщил «Хорошо, делай коммит» и запросил порядок появления методов в APIM/Developer Portal. Одобрены текущие изменения Production Calendar: APIM API/Product, backend Function key, runtime Swagger и update-swagger, сопутствующая документация и сохранённое исправление ответа 404 с результатами ручной проверки. Проверены status/diff; посторонних изменений в исходном репозитории не обнаружено. Ранее успешные build/publish/OpenAPI/Bicep/Bash/actionlint не повторялись, так как после них менялась только документация. Выполняется локальный коммит; push, CI/CD, выдача прав и deployment не запускались. Следующий шаг пользователя — обновить RBAC, отправить коммит и выпустить новый релиз в Test, затем проверить Product/подписку/методы.

@@ -41,9 +41,12 @@ partial class Function
             ProductionCalendarDayGetFailureCode.NotFound => HttpStatusCode.NotFound,
             _ => HttpStatusCode.InternalServerError
         };
-        var message = failure.FailureCode is ProductionCalendarDayGetFailureCode.Unknown
-            ? "Failed to get production calendar day."
-            : failure.FailureMessage;
+        var message = failure.FailureCode switch
+        {
+            ProductionCalendarDayGetFailureCode.Invalid => failure.FailureMessage,
+            ProductionCalendarDayGetFailureCode.NotFound => "Production calendar day was not found.",
+            _ => "Failed to get production calendar day."
+        };
         
         return await WriteErrorAsync(request, statusCode, message, cancellationToken).ConfigureAwait(false);
     }

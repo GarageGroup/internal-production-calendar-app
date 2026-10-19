@@ -123,4 +123,21 @@ Handler инициализации реализован на этапе 5: сн�
 HTTP API реализован: transport DTO отделены от endpoint DTO, вывод camelCase, enum строкой. Unknown возвращает обобщённое сообщение без инфраструктурной диагностики; JsonException даёт 400. Отмена передаётся в чтение/запись JSON и handler, не перехватывается.
 
 
-Эксплуатация (2026-10-07): инкремент 7 содержит scripts/workflows для развёртывания Test/Prod; запуск выполняет пользователь. System Assigned MI, собственная ProductionCalendar каждой среды, существующее общее хранилище версионных ZIP. APIM пока только проверяется, operations не публикуются; HTTP-контракт Function App сохраняется. Бизнес-проверка развёрнутого Test — инкремент 8.
+Эксплуатация (2026-10-07): инкремент 7 содержит scripts/workflows для развёртывания Test/Prod; запуск выполняет пользователь. System Assigned MI, собственная ProductionCalendar каждой среды, существующее общее хранилище версионных ZIP. На этапе 7 APIM только проверялся; с инкремента 9 operations публикуются (см. раздел APIM 2026-10-19); HTTP-контракт Function App сохраняется. Бизнес-проверка развёрнутого Test — инкремент 8.
+
+
+Уточнение 2026-10-07 (ручная проверка Test): успешные GET/PUT, типы дней, високосный год, повторная инициализация и сброс overrides подтверждены через API. На HTTP-границе GET NotFound возвращает обобщённое сообщение "Production calendar day was not found." без диагностики Azure Storage; внутренний Failure сохраняется. Это исправление пока локальное, deployment выполняет пользователь. Прямой просмотр entity и физический подсчёт строк остаются отдельной проверкой этапа 8.
+
+## Контракт APIM — 2026-10-19
+
+Для Test публичный префикс /production-calendar-test, для Prod /production-calendar-prod:
+
+- GET /{country}/{date} — существующий контракт получения дня, ответы 200/400/404/500.
+- POST /initialize — существующее единое тело country/year/days и ответ country/year/daysCount, ответы 200/400/500.
+
+Клиент предъявляет APIM subscription key; отсутствие/невалидный ключ отклоняется gateway. Function key клиенту не нужен: APIM передаёт текущий default host-level key в x-functions-key из secret Named Value. Function App сохраняет AuthorizationLevel.Function. Прямой доступ по Function URL и действующему ключу не запрещается. Валидация country/date/days остаётся в приложении. Backend timeout 240 секунд и отсутствие retry не меняют неатомарную семантику записи года. До пользовательского deployment и ручной проверки это реализованный контракт инфраструктуры, а не подтверждённое состояние gateway.
+### Документация и Product — 2026-10-19
+
+По запросу пользователя спецификация OpenAPI 3.0.3 доступна как технический GET /api/swagger/swagger.json с Function key. Содержит два бизнес-метода, request/response schemas, четыре точных DayType, правила days:null/[], примеры и APIM subscription security scheme. Дата/год в примерах иллюстрируют контракт и не подтверждают официальный календарь. Endpoint документации не добавляется в бизнес-API gateway. При изменении контракта одновременно обновлять src/app/AzureFunc/Swagger/swagger.json.
+
+По выбору пользователя создаётся новый Product Production Calendar каждой среды; он опубликован для Developers и содержит соответствующий API. Нужна подписка с одобрением администратора; APIM subscription key остаётся клиентским credential, Function key — backend credential. Импорт методов/схем выполняет update-swagger после настройки API/Product, а не Bicep operations. Видимость в уже настроенном Developer Portal и фактический импорт проверяются после deployment.

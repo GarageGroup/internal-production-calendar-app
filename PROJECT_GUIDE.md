@@ -96,4 +96,21 @@ Country/year/days обязательны. Days=[] и Days=null допустим�
 
 Добавлены .infra/main.bicep, modules/storage-access.bicep, apim/main.bicep и scripts/install-azure-resources.sh, set-function-app-settings.sh, prepare-apim.sh, artifact.sh. Пять workflows: build/install/publish/deploy/delete. Подробные переменные, права и порядок запусков — в [.infra/README.md](.infra/README.md) и [workflows/README.md](.github/workflows/README.md).
 
-Существующее общее хранилище используется для версионных ZIP. Runtime function-packages создаётся отдельно в Storage Account Test/Prod как в образце. APIM только проверяется, методы не публикуются. Имена переменных сохранены из образца. Реальные запуск/настройки CI/CD и Azure deployment оставлены пользователю; файлы одобрены и закоммичены: 556f33d. Локально пройдены Bicep compile, Bash syntax, actionlint и linux-x64 publish.
+Существующее общее хранилище используется для версионных ZIP. Runtime function-packages создаётся отдельно в Storage Account Test/Prod как в образце. На этапе 7 APIM только проверялся; с инкремента 9 создаются API/методы (см. обновление 2026-10-19). Имена переменных сохранены из образца. Реальные запуск/настройки CI/CD и Azure deployment оставлены пользователю; файлы одобрены и закоммичены: 556f33d. Локально пройдены Bicep compile, Bash syntax, actionlint и linux-x64 publish.
+## Ручная проверка Test — 2026-10-07
+
+Пользователь развернул приложение; API проверен на RU/2027 (365 дней, все 24 overrides) и ZZ/2028 (366 дней). Повторная инициализация, замена исключений, days:[]/null, очистка комментариев, изоляция стран/лет и ответы 400/404/401 подтверждены HTTP запросами. RU/2027 сохранён с исходными данными пользователя; ZZ/2028 оставлен с базовым календарём. Подробности и границы проверки — в DEVELOPMENT_LOG.md и этапе 8 плана.
+
+Локально исправлен ответ GET 404: вместо диагностики Storage возвращается Production calendar day was not found. Build/publish успешны; исправление ещё не развёрнуто. Прямой просмотр entity/подсчёт строк и refresh токена остаются непроверенными. Изменения ожидают ревью без коммита.
+## APIM — инкремент 9, 2026-10-19
+
+По запросу пользователя прежняя заготовка APIM заменена настройкой отдельного API для каждой среды. API ID и suffix: production-calendar-test/production-calendar-prod. Методы: GET /{country}/{date}, POST /initialize; backend — существующая Function App /api/production-calendar. configure-apim в deploy.yml запускается после успешного Function deployment либо отдельно с skip_deploy=true. Install сохраняет только verify, так как при первом install HTTP-функции ещё не опубликованы.
+
+APIM получает default host-level Function key через ARM listKeys в Bicep, хранит secret Named Value и подставляет x-functions-key. Клиенты используют APIM subscription key; продукт и подписки не создаются. Для deployment principal нужна API Management Service Contributor на RG APIM, прежнего Reader недостаточно. Обновлён shell-блок администратора в .infra/README.md. Новых GitHub variables/secrets нет. После ротации Function key повторить APIM-only deploy. Function и APIM должны находиться в одной subscription, RG могут различаться.
+
+Проверки: Bicep main/APIM, actionlint всех workflows, bash -n четырёх scripts и admin shell-блока — успешны. В этой задаче C# не менялся, build/publish повторно не запускались. Azure/CI/CD не запускались. Изменения без коммита; предыдущий инкремент 8 также сохраняется без коммита.
+### Update Swagger / Product — продолжение инкремента 9, 2026-10-19
+
+Добавлен job update-swagger по образцу Timesheet: после configure-apim забирает OpenAPI из развёрнутой Function и импортирует методы/схемы. Input update_swagger=true по умолчанию; работает в Test/Prod и при skip_deploy=true, пропускается вместе с skip_apim. GET /api/swagger/swagger.json защищён Function key; Swagger/swagger.json встроен в сборку. Новых GitHub variables/secrets нет. Схемы и примеры поддерживаются в этом файле вместе с HTTP-контрактом; операции больше не дублируются в Bicep.
+
+Пользователь выбрал новый Product: Bicep публикует production-calendar-test/prod для Developers и добавляет API. Подписки требуют одобрения администратора; их ключи workflow не создаёт. Для первого импорта нужен новый release с endpoint Swagger. Подробности — .infra/README.md. OpenAPI валидация, Release build (0 ошибок/предупреждений), linux-x64 publish, Bicep, Bash и actionlint успешны. Azure/CI/CD не запускались; изменения не закоммичены.

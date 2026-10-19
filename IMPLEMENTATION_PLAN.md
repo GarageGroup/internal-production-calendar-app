@@ -124,21 +124,23 @@
 - [x] Реализовать build/publish/deploy/install/delete workflows без Dataverse и тестовых стадий; publish → Test, reusable deploy → Test/Prod.
 - [x] Подключить проверку существующего APIM без API/backend/policies/operations; исправить APIM-only сценарий skip_deploy.
 - [x] Bicep compile, bash -n, actionlint и Release linux-x64 publish; обновить документацию OIDC/RBAC/variables и порядок ручного запуска.
-- [ ] Пользователь настраивает GitHub variables/secret, environments и OIDC, запускает install/release/deploy для Test. По прямому указанию не выполнять эти действия самостоятельно.
+- [x] Пользователь настраивает GitHub variables/secret, environments и OIDC, запускает install/release/deploy для Test. По прямому указанию не выполнять эти действия самостоятельно.
 - [ ] После Test-проверки пользователь запускает подготовленный путь продвижения того же ZIP в Prod и возврата версии.
 
 Проверка 2026-10-07: Bicep CLI 0.43.8 — main/apim успешны; Git Bash — синтаксис четырёх scripts успешен; actionlint 1.7.12 — пять workflows без ошибок; dotnet publish Release linux-x64 --self-contained false успешен с restore/build. Реальные GitHub runs/Azure deployments не выполнялись. Реализация инкремента 7 готова к ревью, без коммита; запуск среды оставлен пользователю по уточнённому объёму задачи. Ручная бизнес-проверка после deployment — этап 8.
 
 ## Этап 8. Интеграционная проверка
 
-- [ ] Использовать Azure Test-среду, развёрнутую на этапе 7 через CI/CD; проверить доступ к Function App и ProductionCalendar через Managed Identity/RBAC.
-- [ ] Инициализировать невисокосный и високосный годы, прочитать обычный рабочий день, Weekend, Holiday, рабочую субботу и ShortenedDay.
-- [ ] Повторить с изменёнными days, days:[] и days:null, проверить восстановление базового типа и очистку Comment.
-- [ ] Проверить изоляцию страны/года и отсутствие дубликатов; отрицательные HTTP сценарии.
-- [ ] Проверить прямое представление entity: Date и DayType строковые и читаемые.
-- [ ] Restore/build/publish Release; обновить PROJECT_GUIDE.md с рабочими командами и примерами. Корневой README.md зарезервирован пользователем для другой информации.
+- [x] Использовать развёрнутую пользователем Azure Test; подтвердить доступ Function App к ProductionCalendar успешными GET/PUT через настроенную Managed Identity.
+- [x] Инициализировать RU/2027 (365 дней) и отдельный ZZ/2028 (366 дней); прочитать все 24 пользовательских исключения, базовые дни, рабочую субботу и 29 февраля.
+- [x] Повторить исходную инициализацию; проверить изменённые days, days:[] и days:null, восстановление базового типа и очистку Comment.
+- [x] Проверить изоляцию страны/года и отрицательные HTTP сценарии: 400, 404, 401 без ключа.
+- [ ] Проверить физическое количество строк/отсутствие дубликатов и прямое представление Date/DayType в Storage Browser. Локальный Azure CLI не имеет доступа к нужной среде; ответы API не заменяют этот просмотр.
+- [x] Release build и linux-x64 publish; обновить документацию без тестового кода и изменения корневого README.md.
+- [ ] После ревью развернуть локальное исправление сообщения 404 и повторно проверить его в Test. Агент deployment не запускает.
+- [ ] При необходимости отдельно проверить refresh токена и поведение при сбое Storage; текущие HTTP проверки эти сценарии не покрывают.
 
-Готовность: выполнены ручные проверки поведения и идемпотентности в доступной среде. Автоматические тесты не создаются. Праздничные даты в примерах не считаются официальным календарём.
+Проверка 2026-10-07: HTTP сценарии прошли. RU/2027 оставлен с исходными данными пользователя, ZZ/2028 — с базовым календарём после проверки сброса. Ответ 404 развёрнутой версии содержит диагностику Storage; локально заменён на обобщённое сообщение, внутренний Failure сохранён. Build: 0 ошибок/предупреждений; publish успешен. Изменения подготовлены к ревью без коммита. Проверка официальности праздничных дат не выполнялась.
 
 ## Результат проверки каркаса
 
@@ -160,3 +162,27 @@
 Ревью инкремента 7 (2026-10-07): в .infra/README.md добавлены две deployment App Registration и shell-блок администратора (OIDC, создание RG/providers, Contributor/RBAC Administrator, APIM Reader). Bash syntax успешен; команды не выполнялись; без коммита.
 
 2026-10-07: инкремент 7 одобрен и закоммичен — 556f33d. Запуск Azure/CI/CD оставлен пользователю, этап 8 не начат.
+
+## Этап 9. Публикация методов в APIM — 2026-10-19
+
+Новая задача пользователя после ручной проверки приложения; прежние изменения инкремента 8 сохраняются без коммита.
+
+- [x] Отдельный API production-calendar-test/prod, операции GET /{country}/{date} и POST /initialize, backend Function App.
+- [x] Function key через ARM listKeys → secret Named Value → x-functions-key; frontend требует APIM subscription key.
+- [x] configure-apim после Function deployment, APIM-only при skip_deploy=true, verify при install; ограниченное ожидание готовности ключа.
+- [x] Обновить admin shell-блок: API Management Service Contributor на RG APIM; описать ротацию и повторный запуск без новых variables/secrets.
+- [x] Bicep main/APIM compile, actionlint всех workflows, bash -n scripts/admin shell-блока; актуализировать документы и координационный контекст.
+- [ ] Ревью и коммит по одобрению пользователя; агент не выполнял commit/push/deployment.
+- [ ] Пользователь обновляет RBAC и запускает APIM deployment. Затем по отдельному запросу проверить gateway GET/POST, APIM subscription authorization, сохранность backend-контрактов и разделение Test/Prod.
+
+Решения исполнителя: suffix с окружением исключает конфликт API на общем APIM; subscriptionRequired=true сохраняет контроль доступа клиентов, default host key подходит обоим HTTP endpoints без master key. Новый инфраструктурный функционал не меняет C#; build/publish не повторялись. Локальные инфраструктурные проверки успешны; живые Azure проверки не выполнялись.
+### Дополнение этапа 9 — update-swagger и Product, 2026-10-19
+
+- [x] Изучить update-swagger в Timesheet и добавить аналогичный отдельный job после configure-apim, input update_swagger default true в manual/reusable deploy.
+- [x] Подготовить OpenAPI 3.0.3 со схемами/примерами; встроить в Function и добавить защищённый GET /api/swagger/swagger.json.
+- [x] Импортировать спецификацию из опубликованной версии; удалить дублирование operations в Bicep, сохранить ID/HTTPS/backend/subscription policy.
+- [x] По ответу пользователя создать новый published Product среды, добавить API и Developers; подписки одобряет администратор.
+- [x] Проверить OpenAPI, metadata Swagger Function, Release build/publish, Bicep, Bash и workflows; актуализировать MD.
+- [ ] После ревью выпустить новый release с Swagger endpoint; применить APIM, проверить импорт, Product и видимость/подписку/Try it в Developer Portal. Deployment не выполнялся агентом.
+
+Прежние пункты о Bicep operations и отсутствии Product заменены этим уточнением. update_swagger=false не создаёт operations нового API; APIM-only запуск требует уже опубликованного Swagger endpoint. Это продолжение текущего инкремента, а не одобрение его коммита.

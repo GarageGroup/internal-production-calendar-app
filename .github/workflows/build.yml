@@ -19,6 +19,8 @@ jobs:
           for script in .infra/scripts/*.sh; do
             bash -n "$script"
           done
+      - name: Check OpenAPI JSON
+        run: jq -e '.openapi == "3.0.3" and (.paths | type == "object")' src/app/AzureFunc/Swagger/swagger.json > /dev/null
       - run: dotnet restore Internal.ProductionCalendar.slnx
       - run: dotnet build Internal.ProductionCalendar.slnx --no-restore -c Release
 

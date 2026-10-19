@@ -19,17 +19,18 @@
 | --- | --- |
 | main.bicep | Ресурсы, таблица, runtime, deployment storage, settings и outputs |
 | modules/storage-access.bicep | Роли System Assigned MI |
-| apim/main.bicep | Ссылка на существующий APIM и его resource ID, без изменений |
+| apim/main.bicep | API/Product среды, связь с Developers, backend, secret Named Value и policy |
 | scripts/install-azure-resources.sh | Проверка переменных/providers/APIM, Resource Group и Incremental deployment |
 | scripts/set-function-app-settings.sh | Общий набор настроек для ручного и автоматического deploy |
-| scripts/prepare-apim.sh | Проверка существующего APIM через az apim show |
+| scripts/prepare-apim.sh | verify при install; deploy настраивает API/Product после Function deployment |
+| scripts/update-swagger.sh | Получение OpenAPI из опубликованной Function и импорт операций/схем в API |
 | scripts/artifact.sh | Upload/download/delete версионного ZIP в существующем хранилище |
 
-APIM_RESOURCE_GROUP/APIM_SERVICE_NAME обязательны для install и обычного deploy. APIM не создаётся; API, backend, policies, операции и function keys в APIM не настраиваются. Подключение пока означает проверку существующего APIM, как в placeholder проекта-образца. Публикация методов будет отдельным будущим изменением.
+APIM_RESOURCE_GROUP/APIM_SERVICE_NAME обязательны для install и deploy без skip_apim. Сам APIM должен существовать в той же subscription, что и Function App; Resource Group может отличаться. Install только проверяет APIM; deploy после публикации Function создаёт или обновляет API, Product, backend, policy и секретный Named Value; следующий job update-swagger импортирует операции и схемы из развёрнутой Function. Состояние остальных API не изменяется (Incremental deployment).
 
 ## App Registrations
 
-Для CI/CD нужны две Azure deployment App Registration: одна для Test, другая для Prod. Например, internal-production-calendar-deploy-test и internal-production-calendar-deploy-prod. Они выполняют Azure login через GitHub OIDC, установку инфраструктуры, deployment Function App и проверку существующего APIM.
+Для CI/CD нужны две Azure deployment App Registration: одна для Test, другая для Prod. Например, internal-production-calendar-deploy-test и internal-production-calendar-deploy-prod. Они выполняют Azure login через GitHub OIDC, установку инфраструктуры, deployment Function App и настройку API в существующем APIM.
 
 Создать их в Microsoft Entra ID → App registrations, тип Supported account types — Accounts in this organizational directory only. Application (client) ID записать в DEPLOY_CLIENT_ID соответствующего GitHub Environment; Directory (tenant) ID — в DEPLOY_TENANT_ID, Subscription ID — в DEPLOY_SUBSCRIPTION_ID. У приложения должен существовать Service Principal (Enterprise application); shell-скрипт ниже создаёт его при отсутствии.
 
@@ -54,8 +55,7 @@ GITHUB_ORG="GarageGroup"
 GITHUB_REPO="internal-production-calendar-app"
 GITHUB_ENVIRONMENT="Test" # Test или Prod; регистр важен
 
-# Существующий APIM, возможно в другой resource group/subscription того же tenant.
-APIM_SUB_ID="$SUB_ID"
+# Существующий APIM в той же subscription, возможно в другой resource group.
 APIM_RESOURCE_GROUP="<existing-apim-resource-group>"
 APIM_SERVICE_NAME="<existing-apim-name>"
 
@@ -117,16 +117,13 @@ done
 # ролей Storage Blob Data Owner и Storage Table Data Contributor.
 # Роли самой Function Managed Identity назначит modules/storage-access.bicep.
 
-# 5. Для текущего placeholder APIM достаточно Reader.
-APIM_SCOPE="/subscriptions/$APIM_SUB_ID/resourceGroups/$APIM_RESOURCE_GROUP/providers/Microsoft.ApiManagement/service/$APIM_SERVICE_NAME"
+# 5. API Management Service Contributor нужен на RG существующего APIM:
+# deployment создаётся на уровне RG, а API, Named Value и policy — внутри APIM.
+APIM_RG_SCOPE="/subscriptions/$SUB_ID/resourceGroups/$APIM_RESOURCE_GROUP"
+APIM_SCOPE="$APIM_RG_SCOPE/providers/Microsoft.ApiManagement/service/$APIM_SERVICE_NAME"
 az resource show --ids "$APIM_SCOPE" --output none --only-show-errors
 az role assignment create --assignee-object-id "$SP_OBJECT_ID" --assignee-principal-type ServicePrincipal \
-  --role Reader --scope "$APIM_SCOPE" --output none --only-show-errors
-
-# Когда начнём создавать API/backend/policies/operations в APIM,
-# права нужно будет расширить отдельным согласованным изменением:
-# az role assignment create --assignee-object-id "$SP_OBJECT_ID" --assignee-principal-type ServicePrincipal \
-#   --role 'API Management Service Contributor' --scope "$APIM_SCOPE" --output none --only-show-errors
+  --role 'API Management Service Contributor' --scope "$APIM_RG_SCOPE" --output none --only-show-errors
 
 echo "Configured deployment access for $GITHUB_ENVIRONMENT in $RG"
 ```
@@ -174,7 +171,7 @@ Variables GitHub Environments Test/Prod:
 - audience: api://AzureADTokenExchange
 - subject: repo:GarageGroup/internal-production-calendar-app:environment:Test либо :environment:Prod.
 
-Principal должен иметь Contributor на целевой resource group и право назначения ролей (например Role Based Access Control Administrator) для её Storage Account. Если Resource Group создаёт install script, principal дополнительно должен иметь право создавать её в subscription; либо группу заранее создаёт администратор и выдаёт права на неё. Для проверки APIM достаточно Reader на существующем APIM. Для deployment нужны права Function App, предоставляемые Contributor. В subscription заранее должны быть зарегистрированы Microsoft.Web, Microsoft.Storage, Microsoft.Insights, Microsoft.OperationalInsights; скрипт проверяет регистрацию, но не регистрирует providers автоматически.
+Principal должен иметь Contributor на целевой resource group и право назначения ролей (например Role Based Access Control Administrator) для её Storage Account. Если Resource Group создаёт install script, principal дополнительно должен иметь право создавать её в subscription; либо группу заранее создаёт администратор и выдаёт права на неё. Для настройки APIM необходим API Management Service Contributor на Resource Group APIM: роль включает Microsoft.Resources/deployments/* и управление API/Named Values/policies. Одного Reader или назначения роли только на сам сервис недостаточно для group deployment. Для существующих deployment principals администратор повторно выполняет обновлённый пункт 5; прежний Reader можно оставить, он не мешает. Для deployment нужны права Function App, предоставляемые Contributor. В subscription заранее должны быть зарегистрированы Microsoft.Web, Microsoft.Storage, Microsoft.Insights, Microsoft.OperationalInsights; скрипт проверяет регистрацию, но не регистрирует providers автоматически.
 
 Установка использует Incremental mode; она не удаляет неописанные ресурсы. Bicep создаёт пустую таблицу, календарь затем заполняется HTTP-инициализацией. Runtime Table доступ — managed identity с https://storage.azure.com/.default; storage account key в приложении не используется.
 
@@ -196,7 +193,7 @@ Settings присутствуют в Bicep; set-function-app-settings.sh обн�
 1. Настроить repository variables/secret, environments Test/Prod и OIDC/RBAC. Для Prod можно включить approval в GitHub Environment.
 2. Запустить Install Infrastructure с environment=Test. До создания ресурсов проверяются обязательные параметры, providers и существующий APIM.
 3. Создать release с допустимым tag, например v1.0.0. Publish Release сохраняет ZIP и вызывает Deploy Application для Test.
-4. Проверить список функций и логи host. Ручная проверка бизнес-поведения — инкремент 8.
+4. Дождаться configure-apim: после доступности host key (до 12 попыток по 10 секунд) выполняется APIM Bicep deployment. Проверить операции через APIM с subscription key и логи host.
 5. Для Prod запустить Install Infrastructure с environment=Prod, затем Deploy Application с выбранной проверенной version. Реальный запуск выполняет пользователь.
 
 При сбое deploy уже сохранённого ZIP повторить deploy job или Deploy Application с той же version, не пересобирать релиз. Upload использует overwrite=false: перезапись существующей версии запрещена; для изменённого кода создать новую version. Откат приложения — Deploy Application предыдущего ZIP; данные календаря при этом не откатываются. Delete Artifact удаляет ZIP этого приложения и release tag, а не Azure-ресурсы или таблицу.
@@ -206,3 +203,38 @@ Settings присутствуют в Bicep; set-function-app-settings.sh обн�
 Bicep CLI 0.43.8: main/apim compile успешны. Git Bash: bash -n всех четырёх скриптов успешен. actionlint 1.7.12: пять workflows проверены, ошибок нет (ShellCheck/Pyflakes отключены; Bash syntax проверен отдельно). dotnet publish Release linux-x64 --self-contained false успешен, включая restore/build. Тесты и автоматический тестовый harness не создавались. Реальные ресурсы/CI runs/deployment не выполнялись по указанию пользователя.
 
 Источники: [Flex deployment storage](https://learn.microsoft.com/en-us/azure/azure-functions/flex-consumption-how-to#configure-deployment-settings), [Functions Action](https://github.com/Azure/functions-action).
+## API Management — обновление 2026-10-19
+
+В каждой среде API ID и URL suffix — production-calendar-test либо production-calendar-prod. Это позволяет использовать общий APIM для обеих сред без перезаписи API и ключей. Дополнительных GitHub variables/secrets нет.
+
+| Метод | URL gateway относительно его адреса | URL Function |
+| --- | --- | --- |
+| GET | /production-calendar-test/{country}/{date} | /api/production-calendar/{country}/{date} |
+| POST | /production-calendar-test/initialize | /api/production-calendar/initialize |
+
+Для Prod заменить test на prod. Тело и ответы соответствуют SPECIFICATION.md, без дополнительной JSON-обёртки. APIM не подменяет ответы 400/404/500 бизнес-эндпоинтов. Policy задаёт forward-request timeout=240 секунд для последовательной записи года, без автоматического retry POST; таймаут не гарантирует остановку уже начатой записи.
+
+Deployment читает текущий **default host-level Function key** через ARM listKeys непосредственно в Bicep. Он подходит к обоим HTTP endpoints с AuthorizationLevel.Function; master key не используется. Ключ сохраняется как secret Named Value production-calendar-<env>-function-key и передаётся backend в x-functions-key с override. Из клиентского запроса удаляются code, subscription-key и Ocp-Apim-Subscription-Key перед отправкой в Function. Backend URL строится из реального defaultHostName Function App. Ключ не выводится в outputs, не передаётся shell-параметром/через GitHub outputs и не хранится в репозитории. Проверка готовности читает только длину ключа. После ротации Function key повторить APIM deploy; автоматической синхронизации между запусками нет.
+
+Frontend API требует APIM subscription key (Ocp-Apim-Subscription-Key); клиенты не получают Function key. Подпишитесь на Product Production Calendar выбранной среды через Developer Portal и получите одобрение администратора; для технического вызова также подходит API-scoped или all-APIs subscription. Bicep создаёт новый Product production-calendar-<env> и привязывает API; подписки и пользовательские ключи не создаются. Product опубликован для зарегистрированных пользователей Developers и требует subscription key; заявки на подписку одобряет администратор. Унаследованные inbound/outbound/on-error политики сохраняются; backend явно выполняет forward-request. APIM должен иметь сетевой доступ к Function. Эта настройка не закрывает прямой Function URL для обладателей его ключа.
+
+Для уже развёрнутого приложения: после обновления прав администратора запустить Deploy Application с существующей version, skip_deploy=true, skip_apim=false. ZIP не скачивается и Function не переустанавливается; configure-apim настраивает API/Product и обновляет Named Value, затем update-swagger обновляет операции и схемы. Function уже должна содержать Swagger endpoint. При обычном deploy APIM выполняется только после успешного Function job; его ошибка не откатывает уже опубликованный ZIP. Повторить APIM-only запуск после исправления причины.
+
+Проверки 2026-10-19: см. DEVELOPMENT_LOG.md. Агент Azure deployments и workflows не запускал.
+
+Источники: [Named Values](https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-properties), [Function keys](https://learn.microsoft.com/en-us/azure/azure-functions/function-keys-how-to), [API Management Service Contributor](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/integration#api-management-service-contributor), [forward-request](https://learn.microsoft.com/en-us/azure/api-management/forward-request-policy).
+## Update Swagger и Developer Portal — 2026-10-19
+
+Источник подхода — .infra/scripts/update-swagger.sh и update-swagger jobs deploy/publish в internal-timesheet-service-app. Там выполняется az apim api import из runtime Swagger. Здесь применяется тот же импорт, но без общего Swagger API и дополнительных APIM_SUBKEY/APIM_DNS: runner получает документ напрямую из защищённой Function по её host key.
+
+Порядок: deploy-application → configure-apim → update-swagger. Input update_swagger=true по умолчанию доступен для ручного и reusable deploy; publish-to-Test получает этот default. skip_apim=true также пропускает импорт. skip_deploy=true, skip_apim=false, update_swagger=true обновляет APIM по уже опубликованной Function без повторного ZIP deployment. Если update_swagger=false, существующие операции остаются прежними; новый API остаётся без операций до первого импорта. Ошибка configure-apim блокирует импорт; ошибка импорта завершает workflow ошибкой без отката Function или Bicep.
+
+Первое развёртывание этой доработки требует нового release: в старом ZIP нет GetProductionCalendarSwagger. Спецификация src/app/AzureFunc/Swagger/swagger.json (OpenAPI 3.0.3) встроена в сборку и отдаётся GET /api/swagger/swagger.json с AuthorizationLevel.Function. Для прямого скачивания необходим x-functions-key. Endpoint технический, не включён в бизнес-API APIM. Файл описывает маршруты, стабильные operationId, параметры, DayType, nullable Comment/days, ограничения, ответы и примеры; при изменении HTTP-контракта обновлять его в том же инкременте. info.version — версия контракта, не release tag.
+
+update-swagger.sh берёт defaultHostName/host key через Azure CLI, маскирует ключ в GitHub Actions, скачивает JSON с ограниченными повторными попытками во временный файл, проверяет формат и выполняет az apim api import --specification-format OpenApiJson. Документ берётся из развёрнутой версии, а не из checkout runner; секрет отсутствует в URL и спецификации, временный файл удаляется. На import явно сохраняются HTTPS, backend URL и subscriptionRequired=true. OperationId get-production-calendar-day / initialize-production-calendar совпадают с прежними ID. Bicep больше не описывает операции отдельно; API-level Function-key policy остаётся ответственностью Bicep.
+
+Новый Product в каждой среде имеет ID production-calendar-test/prod, displayName Production Calendar (test/prod), state=published, subscriptionRequired=true, approvalRequired=true. API связан с Product, Product — с встроенной группой developers. Гости к нему не добавляются. Пользователь портала запрашивает подписку, администратор её одобряет; после этого доступны вызовы с subscription key. Сам Developer Portal должен быть уже настроен/опубликован в существующем APIM; создание и публикация сайта портала, подписки и выдача пользовательских ключей этим workflow не выполняются.
+
+Дополнительные GitHub variables/secrets, App Registrations или роли сверх API Management Service Contributor на RG APIM и существующего Contributor на RG Function не нужны. Обновлённая роль покрывает import, Products и привязки. Проверка реального импорта, видимости для Developers, заявки/одобрения подписки и Try it должна выполняться после deployment; локальные проверки не подтверждают состояние Developer Portal.
+
+Источники: [импорт и публикация API](https://learn.microsoft.com/en-us/azure/api-management/import-and-publish), [Products и доступ](https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-add-products), [az apim api import](https://learn.microsoft.com/en-us/cli/azure/apim/api#az-apim-api-import).

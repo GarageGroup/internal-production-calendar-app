@@ -1,0 +1,106 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Production Calendar",
+    "version": "1.0.0",
+    "description": "Country production calendars. WorkingDay and ShortenedDay are working days; Weekend and Holiday are non-working days."
+  },
+  "security": [{ "ApimSubscriptionKey": [] }],
+  "paths": {
+    "/{country}/{date}": {
+      "get": {
+        "operationId": "get-production-calendar-day",
+        "summary": "Get production calendar day",
+        "description": "Reads a single stored day. An absent calendar is not replaced with a computed weekday.",
+        "parameters": [
+          { "name": "country", "in": "path", "required": true, "description": "Two ASCII letters; normalized to uppercase.", "schema": { "type": "string" }, "example": "RU" },
+          { "name": "date", "in": "path", "required": true, "description": "Calendar date in yyyy-MM-dd format.", "schema": { "type": "string", "format": "date" }, "example": "2027-04-30" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored calendar day.",
+            "content": { "application/json": {
+              "schema": { "$ref": "#/components/schemas/CalendarDay" },
+              "example": { "date": "2027-04-30", "country": "RU", "isWorkingDay": true, "dayType": "ShortenedDay", "comment": "Предпраздничный день" }
+            } }
+          },
+          "400": { "$ref": "#/components/responses/Invalid" },
+          "401": { "description": "Missing or invalid APIM subscription key." },
+          "404": { "description": "Calendar day not found.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "500": { "$ref": "#/components/responses/Failure" }
+        }
+      }
+    },
+    "/initialize": {
+      "post": {
+        "operationId": "initialize-production-calendar",
+        "summary": "Initialize production calendar",
+        "description": "Generates all 365/366 days, applies overrides and replaces every day of the country/year. Monday-Friday default to WorkingDay, Saturday-Sunday to Weekend. Repeated initialization clears old overrides/comments absent from this request. Validation precedes writes. The year is not written atomically; concurrent initialization of the same country/year is not supported. Do not automatically retry a timed-out request while the original may still be running.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": {
+            "schema": { "$ref": "#/components/schemas/InitializeCalendar" },
+            "example": { "country": "RU", "year": 2027, "days": [{ "date": "2027-04-30", "type": "ShortenedDay", "comment": "Предпраздничный день" }] }
+          } }
+        },
+        "responses": {
+          "200": { "description": "All days have been saved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InitializedCalendar" }, "example": { "country": "RU", "year": 2027, "daysCount": 365 } } } },
+          "400": { "$ref": "#/components/responses/Invalid" },
+          "401": { "description": "Missing or invalid APIM subscription key." },
+          "500": { "$ref": "#/components/responses/Failure" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApimSubscriptionKey": { "type": "apiKey", "in": "header", "name": "Ocp-Apim-Subscription-Key", "description": "Subscription to the Production Calendar product. Function key is supplied by APIM." }
+    },
+    "schemas": {
+      "DayType": { "type": "string", "enum": ["WorkingDay", "Weekend", "Holiday", "ShortenedDay"] },
+      "CalendarDay": {
+        "type": "object",
+        "required": ["date", "country", "isWorkingDay", "dayType"],
+        "properties": {
+          "date": { "type": "string", "format": "date" },
+          "country": { "type": "string", "example": "RU" },
+          "isWorkingDay": { "type": "boolean", "description": "True for WorkingDay and ShortenedDay." },
+          "dayType": { "$ref": "#/components/schemas/DayType" },
+          "comment": { "type": "string", "nullable": true }
+        }
+      },
+      "InitializeDay": {
+        "type": "object",
+        "required": ["date", "type"],
+        "properties": {
+          "date": { "type": "string", "format": "date", "description": "Unique within days; must belong to year." },
+          "type": { "$ref": "#/components/schemas/DayType" },
+          "comment": { "type": "string", "nullable": true }
+        }
+      },
+      "InitializeCalendar": {
+        "type": "object",
+        "required": ["country", "year", "days"],
+        "properties": {
+          "country": { "type": "string", "description": "Two ASCII letters; normalized to uppercase.", "example": "RU" },
+          "year": { "type": "integer", "minimum": 1, "maximum": 9999, "example": 2027 },
+          "days": { "type": "array", "nullable": true, "description": "Overrides, not all days. Required property; [] and null both reset to the base calendar. Null items and duplicate dates are invalid.", "items": { "$ref": "#/components/schemas/InitializeDay" } }
+        }
+      },
+      "InitializedCalendar": {
+        "type": "object",
+        "required": ["country", "year", "daysCount"],
+        "properties": {
+          "country": { "type": "string" },
+          "year": { "type": "integer", "minimum": 1, "maximum": 9999 },
+          "daysCount": { "type": "integer", "minimum": 365, "maximum": 366 }
+        }
+      },
+      "Error": { "type": "object", "required": ["error"], "properties": { "error": { "type": "string" } } }
+    },
+    "responses": {
+      "Invalid": { "description": "Invalid input. No calendar writes have started.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Failure": { "description": "Application or storage failure. An initialization may have partially updated the year.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    }
+  }
+}

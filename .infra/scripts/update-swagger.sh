@@ -8,10 +8,11 @@ done
 
 api_name="production-calendar-$AZURE_NAME_POSTFIX"
 host_name="$(az functionapp show --resource-group "$AZURE_RESOURCE_GROUP_NAME" --name "$AZURE_FUNCTION_NAME" \
-  --query defaultHostName -o tsv --only-show-errors)"
+  --query 'properties.defaultHostName || defaultHostName' -o tsv --only-show-errors)"
+[[ -n "$host_name" ]] || { echo 'Function hostname is unavailable; check the Function App resource and Azure CLI response.' >&2; exit 1; }
 function_key="$(az functionapp keys list --resource-group "$AZURE_RESOURCE_GROUP_NAME" --name "$AZURE_FUNCTION_NAME" \
   --query functionKeys.default -o tsv --only-show-errors)"
-[[ -n "$host_name" && -n "$function_key" ]] || { echo 'Function hostname or host key is unavailable.' >&2; exit 1; }
+[[ -n "$function_key" ]] || { echo 'Function default host key is unavailable; check host readiness and access permissions.' >&2; exit 1; }
 if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
   echo "::add-mask::$function_key"
 fi

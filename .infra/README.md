@@ -240,3 +240,6 @@ update-swagger.sh берёт defaultHostName/host key через Azure CLI, ма
 Источники: [импорт и публикация API](https://learn.microsoft.com/en-us/azure/api-management/import-and-publish), [Products и доступ](https://learn.microsoft.com/en-us/azure/api-management/api-management-howto-add-products), [az apim api import](https://learn.microsoft.com/en-us/cli/azure/apim/api#az-apim-api-import).
 
 Исправление policy 2026-10-19: сообщение Backend with id '${backend.name}' could not be found связано с буквальной подстановкой в прежнем raw multiline XML. Текущая policy использует явные replace для backend/Named Value и зависимости на оба ресурса. После отправки исправления повторить APIM-only Deploy Application (skip_deploy=true, skip_apim=false, update_swagger=true) с существующей version, если Function уже содержит Swagger endpoint. Повторное назначение RBAC и сборка ZIP для этой правки не требуются.
+
+
+Исправление update-swagger 2026-10-19: az functionapp show может возвращать hostname в properties.defaultHostName, поэтому скрипт читает properties.defaultHostName || defaultHostName. Отсутствие hostname и default host key диагностируются отдельно. Подтверждено read-only запросами Test без вывода ключа. Для применения достаточно после отправки правки повторить APIM-only deploy, новый ZIP не нужен.

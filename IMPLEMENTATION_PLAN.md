@@ -188,3 +188,6 @@
 Прежние пункты о Bicep operations и отсутствии Product заменены этим уточнением. update_swagger=false не создаёт operations нового API; APIM-only запуск требует уже опубликованного Swagger endpoint. Это продолжение текущего инкремента, а не одобрение его коммита.
 
 Исправление этапа 9 от 2026-10-19: после ошибки пользовательского deployment XML policy переведена на явные replace backend/Named Value вместо буквальных выражений raw string. Compile и проверка ARM expression/dependencies успешны; live deployment остаётся на стороне пользователя. Исправление ожидает ревью без коммита.
+
+
+Исправление этапа 9 от 2026-10-19: update-swagger поддерживает оба формата hostname ответа Azure CLI (properties.defaultHostName || defaultHostName); причины отсутствия hostname/ключа разделены. Bash syntax и read-only Azure проверка Test успешны, сам import не запускался. Исправление ожидает ревью без коммита.

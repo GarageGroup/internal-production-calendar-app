@@ -27,7 +27,7 @@ unset function_key
 jq -e '.openapi == "3.0.3" and (.paths | type == "object")' "$specification" > /dev/null
 
 az apim api import --resource-group "$APIM_RESOURCE_GROUP" --service-name "$APIM_SERVICE_NAME" \
-  --api-id "$api_name" --path "$api_name" --display-name "Production Calendar ($AZURE_NAME_POSTFIX)" \
+  --api-id "$api_name" --path "$api_name" --display-name 'Production Calendar' \
   --service-url "https://$host_name/api/production-calendar" --protocols https --subscription-required true \
   --specification-format OpenApiJson --specification-path "$specification" --output none --only-show-errors
 echo "Swagger imported into APIM API '$api_name'."

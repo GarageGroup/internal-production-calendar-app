@@ -417,3 +417,10 @@ RBAC: admin shell-блок теперь назначает API Management Servic
 
 Проверка: bash -n успешен. Исправленный read-only запрос Azure вернул реальный hostname Test; отдельный запрос length(functionKeys.default) > 0 вернул true, без вывода значения ключа. Значения ключей в файлы/документы не записывались. Полный update-swagger не запускался, так как он изменяет APIM. C#/Bicep/workflows не менялись, их проверки не повторялись. Документация обновлена; коммит, push, CI/CD и deployment не выполнялись. После одобрения/отправки исправления повторить APIM-only Deploy Application с существующей version, skip_deploy=true, skip_apim=false, update_swagger=true. Новый ZIP для изменения скрипта не требуется.
 Одобрение 2026-10-19: пользователь сообщил «коммить». Исправление получения hostname и связанные документы одобрены; status/diff проверены, выполняется локальный коммит. Push, CI/CD и deployment не запускаются.
+
+
+## 2026-10-19 — отображаемые названия API и Product
+
+Пользователь попросил убрать (test)/(prod) из названия API и назвать Product Garage Production Calendar без окружения. API displayName изменён на Production Calendar в Bicep и update-swagger, Product displayName — Garage Production Calendar. Решение исполнителя: технические ID/path с окружением и backend title сохранены, чтобы не смешивать среды; существующие API/Product обновляются без пересоздания. Bicep compile, Bash syntax и просмотр скомпилированных displayName успешны. C#/workflows не менялись; сборка не повторялась. Документация и координационный контекст актуализированы. Коммит, push и deployment не выполнялись; изменения ожидают ревью.
+
+Одобрение 2026-10-19: по команде пользователя «коммить» переименование API/Product и связанные документы одобрены. Status/diff проверены, выполняется локальный коммит. Push, CI/CD и deployment не запускаются.

@@ -191,3 +191,7 @@
 
 
 Исправление этапа 9 от 2026-10-19: update-swagger поддерживает оба формата hostname ответа Azure CLI (properties.defaultHostName || defaultHostName); причины отсутствия hostname/ключа разделены. Bash syntax и read-only Azure проверка Test успешны, сам import не запускался. Исправление ожидает ревью без коммита.
+
+
+Обновление названий 2026-10-19 по запросу пользователя: API displayName — Production Calendar, Product displayName — Garage Production Calendar, без (test)/(prod) в обеих средах. Имена согласованы в Bicep и update-swagger, чтобы импорт не возвращал суффикс. Технические API/Product ID и URL production-calendar-test/prod сохранены для изоляции сред; переименовываются существующие ресурсы без пересоздания. Backend title сохраняет окружение как техническую метку. Для применения после отправки правки достаточно APIM-only Deploy Application; новый ZIP не требуется.
+Проверки Bicep compile/Bash syntax/displayName успешны; правка ожидает ревью без коммита.

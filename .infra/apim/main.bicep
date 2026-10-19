@@ -41,7 +41,7 @@ resource api 'Microsoft.ApiManagement/service/apis@2024-05-01' = {
   parent: apim
   name: apiName
   properties: {
-    displayName: 'Production Calendar (${environmentName})'
+    displayName: 'Production Calendar'
     description: 'Read a calendar day or initialize a complete country calendar.'
     apiType: 'http'
     path: apiName
@@ -55,7 +55,7 @@ resource product 'Microsoft.ApiManagement/service/products@2024-05-01' = {
   parent: apim
   name: apiName
   properties: {
-    displayName: 'Production Calendar (${environmentName})'
+    displayName: 'Garage Production Calendar'
     description: 'Country production calendar API.'
     state: 'published'
     subscriptionRequired: true

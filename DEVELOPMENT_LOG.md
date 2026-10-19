@@ -398,3 +398,13 @@ RBAC: admin shell-блок теперь назначает API Management Servic
 ## 2026-10-19 — одобрение и коммит APIM/OpenAPI
 
 Пользователь сообщил «Хорошо, делай коммит» и запросил порядок появления методов в APIM/Developer Portal. Одобрены текущие изменения Production Calendar: APIM API/Product, backend Function key, runtime Swagger и update-swagger, сопутствующая документация и сохранённое исправление ответа 404 с результатами ручной проверки. Проверены status/diff; посторонних изменений в исходном репозитории не обнаружено. Ранее успешные build/publish/OpenAPI/Bicep/Bash/actionlint не повторялись, так как после них менялась только документация. Выполняется локальный коммит; push, CI/CD, выдача прав и deployment не запускались. Следующий шаг пользователя — обновить RBAC, отправить коммит и выпустить новый релиз в Test, затем проверить Product/подписку/методы.
+
+## 2026-10-19 — исправление подстановок XML policy APIM
+
+Источник: пользователь сообщил о configure-apim DeploymentFailed: backend с буквальным ID ${backend.name} не найден. Причина — ошибка исполнителя: XML был raw multiline string, и выражения backend.name/functionKey.properties.displayName внутри него не подставлялись. Успешный Bicep compile этого не обнаружил; перед первым коммитом не было проверки содержимого скомпилированной policy.
+
+Исправление: XML использует явные маркеры __BACKEND_NAME__/__FUNCTION_KEY_NAME__ и два replace с реальными ссылками на ресурсы. Исправлены обе подстановки — backend и Named Value — чтобы за первой ошибкой не последовала ошибка ссылки на ключ. Ссылки теперь также формируют dependsOn для backend и Named Value; API policy создаётся после этих ресурсов.
+
+Проверка: Bicep compile успешен; в ARM JSON policy — replace-expression без буквальных ${...}, dependsOn включает API/backend/Named Value. Ручная подстановка имён Test и разбор XML подтверждают backend production-calendar-test-backend и ссылку {{production-calendar-test-function-key}}. Тесты/harness не добавлялись. C# и workflows не менялись, build/publish не повторялись. Azure deployment не запускался. Исправление и документация без коммита, ожидают ревью. После одобрения/отправки исправления можно выполнить Deploy Application с текущей version, skip_deploy=true, skip_apim=false, update_swagger=true; новый ZIP для этой Bicep-правки не нужен, если уже опубликован Swagger endpoint.
+
+Одобрение 2026-10-19: пользователь сообщил «коммить». Исправление XML policy и связанные документы одобрены; выполняется локальный коммит после проверки status/diff. Push, CI/CD и deployment не выполняются.

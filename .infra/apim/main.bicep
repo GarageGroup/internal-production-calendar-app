@@ -79,13 +79,13 @@ resource policy 'Microsoft.ApiManagement/service/apis/policies@2024-05-01' = {
   name: 'policy'
   properties: {
     format: 'rawxml'
-    value: '''
+    value: replace(replace('''
       <policies>
         <inbound>
           <base />
-          <set-backend-service backend-id="${backend.name}" />
+          <set-backend-service backend-id="__BACKEND_NAME__" />
           <set-header name="x-functions-key" exists-action="override">
-            <value>{{${functionKey.properties.displayName}}}</value>
+            <value>{{__FUNCTION_KEY_NAME__}}</value>
           </set-header>
           <set-query-parameter name="code" exists-action="delete" />
           <set-header name="Ocp-Apim-Subscription-Key" exists-action="delete" />
@@ -97,7 +97,7 @@ resource policy 'Microsoft.ApiManagement/service/apis/policies@2024-05-01' = {
         <outbound><base /></outbound>
         <on-error><base /></on-error>
       </policies>
-      '''
+      ''', '__BACKEND_NAME__', backend.name), '__FUNCTION_KEY_NAME__', functionKey.properties.displayName)
   }
 }
 

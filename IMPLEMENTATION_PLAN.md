@@ -186,3 +186,5 @@
 - [ ] После ревью выпустить новый release с Swagger endpoint; применить APIM, проверить импорт, Product и видимость/подписку/Try it в Developer Portal. Deployment не выполнялся агентом.
 
 Прежние пункты о Bicep operations и отсутствии Product заменены этим уточнением. update_swagger=false не создаёт operations нового API; APIM-only запуск требует уже опубликованного Swagger endpoint. Это продолжение текущего инкремента, а не одобрение его коммита.
+
+Исправление этапа 9 от 2026-10-19: после ошибки пользовательского deployment XML policy переведена на явные replace backend/Named Value вместо буквальных выражений raw string. Compile и проверка ARM expression/dependencies успешны; live deployment остаётся на стороне пользователя. Исправление ожидает ревью без коммита.

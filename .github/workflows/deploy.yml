@@ -104,6 +104,7 @@ jobs:
       - name: Configure Production Calendar API
         env:
           APIM_RESOURCE_GROUP: ${{ vars.APIM_RESOURCE_GROUP }}
+          APIM_SUBSCRIPTION_ID: ${{ vars.APIM_SUBSCRIPTION_ID }}
           APIM_SERVICE_NAME: ${{ vars.APIM_SERVICE_NAME }}
           AZURE_RESOURCE_GROUP_NAME: rg-${{ vars.AZURE_NAME_ROOT }}-${{ vars.AZURE_NAME_POSTFIX }}
           AZURE_FUNCTION_NAME: func-${{ vars.AZURE_NAME_ROOT }}-${{ vars.AZURE_NAME_POSTFIX }}
@@ -128,6 +129,7 @@ jobs:
       - name: Update API Management specification
         env:
           APIM_RESOURCE_GROUP: ${{ vars.APIM_RESOURCE_GROUP }}
+          APIM_SUBSCRIPTION_ID: ${{ vars.APIM_SUBSCRIPTION_ID }}
           APIM_SERVICE_NAME: ${{ vars.APIM_SERVICE_NAME }}
           AZURE_RESOURCE_GROUP_NAME: rg-${{ vars.AZURE_NAME_ROOT }}-${{ vars.AZURE_NAME_POSTFIX }}
           AZURE_FUNCTION_NAME: func-${{ vars.AZURE_NAME_ROOT }}-${{ vars.AZURE_NAME_POSTFIX }}

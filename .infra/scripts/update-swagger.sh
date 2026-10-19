@@ -7,10 +7,12 @@ done
 [[ "$AZURE_NAME_POSTFIX" =~ ^(test|prod)$ ]] || { echo 'AZURE_NAME_POSTFIX must be test or prod' >&2; exit 1; }
 
 api_name="production-calendar-$AZURE_NAME_POSTFIX"
-host_name="$(az functionapp show --resource-group "$AZURE_RESOURCE_GROUP_NAME" --name "$AZURE_FUNCTION_NAME" \
+function_subscription="$(az account show --query id -o tsv --only-show-errors)"
+apim_subscription="${APIM_SUBSCRIPTION_ID:-$function_subscription}"
+host_name="$(az functionapp show --subscription "$function_subscription" --resource-group "$AZURE_RESOURCE_GROUP_NAME" --name "$AZURE_FUNCTION_NAME" \
   --query 'properties.defaultHostName || defaultHostName' -o tsv --only-show-errors)"
 [[ -n "$host_name" ]] || { echo 'Function hostname is unavailable; check the Function App resource and Azure CLI response.' >&2; exit 1; }
-function_key="$(az functionapp keys list --resource-group "$AZURE_RESOURCE_GROUP_NAME" --name "$AZURE_FUNCTION_NAME" \
+function_key="$(az functionapp keys list --subscription "$function_subscription" --resource-group "$AZURE_RESOURCE_GROUP_NAME" --name "$AZURE_FUNCTION_NAME" \
   --query functionKeys.default -o tsv --only-show-errors)"
 [[ -n "$function_key" ]] || { echo 'Function default host key is unavailable; check host readiness and access permissions.' >&2; exit 1; }
 if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
@@ -26,7 +28,7 @@ curl --silent --show-error --fail --retry 12 --retry-all-errors --retry-delay 10
 unset function_key
 jq -e '.openapi == "3.0.3" and (.paths | type == "object")' "$specification" > /dev/null
 
-az apim api import --resource-group "$APIM_RESOURCE_GROUP" --service-name "$APIM_SERVICE_NAME" \
+az apim api import --subscription "$apim_subscription" --resource-group "$APIM_RESOURCE_GROUP" --service-name "$APIM_SERVICE_NAME" \
   --api-id "$api_name" --path "$api_name" --display-name 'Production Calendar' \
   --service-url "https://$host_name/api/production-calendar" --protocols https --subscription-required true \
   --specification-format OpenApiJson --specification-path "$specification" --output none --only-show-errors

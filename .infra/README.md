@@ -26,7 +26,7 @@
 | scripts/update-swagger.sh | Получение OpenAPI из опубликованной Function и импорт операций/схем в API |
 | scripts/artifact.sh | Upload/download/delete версионного ZIP в существующем хранилище |
 
-APIM_RESOURCE_GROUP/APIM_SERVICE_NAME обязательны для install и deploy без skip_apim. Сам APIM должен существовать в той же subscription, что и Function App; Resource Group может отличаться. Install только проверяет APIM; deploy после публикации Function создаёт или обновляет API, Product, backend, policy и секретный Named Value; следующий job update-swagger импортирует операции и схемы из развёрнутой Function. Состояние остальных API не изменяется (Incremental deployment).
+APIM_RESOURCE_GROUP/APIM_SERVICE_NAME обязательны для install и deploy без skip_apim. APIM должен существовать в том же tenant; subscription и Resource Group могут отличаться. Для другой subscription задайте APIM_SUBSCRIPTION_ID. Install только проверяет APIM; deploy после публикации Function создаёт или обновляет API, Product, backend, policy и секретный Named Value; следующий job update-swagger импортирует операции и схемы из развёрнутой Function. Состояние остальных API не изменяется (Incremental deployment).
 
 ## App Registrations
 
@@ -55,7 +55,8 @@ GITHUB_ORG="GarageGroup"
 GITHUB_REPO="internal-production-calendar-app"
 GITHUB_ENVIRONMENT="Test" # Test или Prod; регистр важен
 
-# Существующий APIM в той же subscription, возможно в другой resource group.
+# Существующий APIM в том же tenant; subscription и resource group могут отличаться.
+APIM_SUB_ID="$SUB_ID" # заполнить другой subscription ID, если APIM находится в ней
 APIM_RESOURCE_GROUP="<existing-apim-resource-group>"
 APIM_SERVICE_NAME="<existing-apim-name>"
 
@@ -119,11 +120,11 @@ done
 
 # 5. API Management Service Contributor нужен на RG существующего APIM:
 # deployment создаётся на уровне RG, а API, Named Value и policy — внутри APIM.
-APIM_RG_SCOPE="/subscriptions/$SUB_ID/resourceGroups/$APIM_RESOURCE_GROUP"
+APIM_RG_SCOPE="/subscriptions/$APIM_SUB_ID/resourceGroups/$APIM_RESOURCE_GROUP"
 APIM_SCOPE="$APIM_RG_SCOPE/providers/Microsoft.ApiManagement/service/$APIM_SERVICE_NAME"
-az resource show --ids "$APIM_SCOPE" --output none --only-show-errors
+az resource show --subscription "$APIM_SUB_ID" --ids "$APIM_SCOPE" --output none --only-show-errors
 az role assignment create --assignee-object-id "$SP_OBJECT_ID" --assignee-principal-type ServicePrincipal \
-  --role 'API Management Service Contributor' --scope "$APIM_RG_SCOPE" --output none --only-show-errors
+  --subscription "$APIM_SUB_ID" --role 'API Management Service Contributor' --scope "$APIM_RG_SCOPE" --output none --only-show-errors
 
 echo "Configured deployment access for $GITHUB_ENVIRONMENT in $RG"
 ```
@@ -158,6 +159,7 @@ Variables GitHub Environments Test/Prod:
 | STORAGE_ACCOUNT_NAME | Уникальный Storage Account приложения: 3–24 строчных буквы/цифры |
 | FUNC_INSTANCE_MEMORY | Опционально: 512, 2048 или 4096 MB, default 2048 |
 | FUNC_MAX_INSTANCE_COUNT | Опционально: 40–1000, default 100 |
+| APIM_SUBSCRIPTION_ID | Опционально: subscription APIM; без значения используется DEPLOY_SUBSCRIPTION_ID |
 | APIM_RESOURCE_GROUP | Resource Group существующего APIM |
 | APIM_SERVICE_NAME | Имя существующего APIM |
 
@@ -246,3 +248,9 @@ update-swagger.sh берёт defaultHostName/host key через Azure CLI, ма
 
 
 Обновление названий 2026-10-19 по запросу пользователя: API displayName — Production Calendar, Product displayName — Garage Production Calendar, без (test)/(prod) в обеих средах. Имена согласованы в Bicep и update-swagger, чтобы импорт не возвращал суффикс. Технические API/Product ID и URL production-calendar-test/prod сохранены для изоляции сред; переименовываются существующие ресурсы без пересоздания. Backend title сохраняет окружение как техническую метку. Для применения после отправки правки достаточно APIM-only Deploy Application; новый ZIP не требуется.
+
+
+Подготовка Prod 2026-10-19: по прямому запросу пользователя создан GitHub Environment Prod и записаны сначала 10 environment variables с отдельным deployment principal и APIM. Name root как в Test, postfix=prod; Storage stproductioncalendarprod (доступность имени проверена), лимиты 512 MB/40 instances как в Test. Секреты и общие artifact variables не менялись. Реальные Azure ресурсы/RBAC/deployments не создавались. Первичная проверка APIM в subscription Function вернула ResourceGroupNotFound; пользователь уточнил отдельную subscription APIM. В правильной subscription наличие APIM подтверждено, добавлена 11-я variable APIM_SUBSCRIPTION_ID. Перед install требуется существующий APIM; полный admin shell-блок выше настраивает Prod с GitHub Environment=Prod и соответствующим client ID. Код скрипта проверен bash -n, не выполнялся. Подробности ограничений проверки — DEVELOPMENT_LOG.md.
+
+
+Уточнение Prod 2026-10-19: APIM находится в другой subscription того же tenant. В Prod записана APIM_SUBSCRIPTION_ID и повторно проверены все 11 variables. install/configure-apim/update-swagger передают её явно; Function запросы остаются в subscription Azure login (DEPLOY_SUBSCRIPTION_ID). Bicep получает functionSubscriptionId и использует полный cross-subscription resource ID Function для hostname/listKeys. При пустой APIM_SUBSCRIPTION_ID поведение Test сохраняется. Admin script назначает app-RG роли в subscription приложения, APIM роль — в subscription APIM. Azure mutations не выполнялись; локальные Bicep/actionlint/Bash проверки успешны. Сначала закоммитить/отправить эти изменения, затем выполнять install/deploy Prod.

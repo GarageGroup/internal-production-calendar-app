@@ -195,3 +195,9 @@
 
 Обновление названий 2026-10-19 по запросу пользователя: API displayName — Production Calendar, Product displayName — Garage Production Calendar, без (test)/(prod) в обеих средах. Имена согласованы в Bicep и update-swagger, чтобы импорт не возвращал суффикс. Технические API/Product ID и URL production-calendar-test/prod сохранены для изоляции сред; переименовываются существующие ресурсы без пересоздания. Backend title сохраняет окружение как техническую метку. Для применения после отправки правки достаточно APIM-only Deploy Application; новый ZIP не требуется.
 Проверки Bicep compile/Bash syntax/displayName успешны; правка ожидает ревью без коммита.
+
+
+Подготовка Prod от 2026-10-19: GitHub Environment и 10 variables созданы по запросу пользователя и перечитаны. Полный admin shell-скрипт подготовлен, bash -n успешен; Azure права/ресурсы/CI/CD не менялись. Ожидается уточнение по существованию Prod APIM после ResourceGroupNotFound. Затем — admin RBAC/OIDC, пользовательские install Prod и deploy проверенного release ZIP.
+
+
+Уточнение Prod 2026-10-19: APIM подтверждён в другой subscription того же tenant, GitHub variables Prod теперь 11 с APIM_SUBSCRIPTION_ID. Cross-subscription поддержка реализована в Bicep/install/deploy/import scripts, admin shell обновлён. Bicep/Bash/actionlint успешны; права и deployment не выполнялись, код ожидает ревью/коммита.

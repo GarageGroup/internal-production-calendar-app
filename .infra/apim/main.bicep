@@ -2,6 +2,7 @@ targetScope = 'resourceGroup'
 
 param apimServiceName string
 param functionResourceGroup string
+param functionSubscriptionId string = subscription().subscriptionId
 param functionAppName string
 @allowed(['test', 'prod'])
 param environmentName string
@@ -9,7 +10,7 @@ param environmentName string
 resource apim 'Microsoft.ApiManagement/service@2024-05-01' existing = { name: apimServiceName }
 resource functionApp 'Microsoft.Web/sites@2024-04-01' existing = {
   name: functionAppName
-  scope: resourceGroup(functionResourceGroup)
+  scope: resourceGroup(functionSubscriptionId, functionResourceGroup)
 }
 
 var apiName = 'production-calendar-${environmentName}'
